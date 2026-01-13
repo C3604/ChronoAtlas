@@ -1,0 +1,468 @@
+{
+  "tags": [
+    {
+      "id": "tag_1",
+      "name": "战争"
+    },
+    {
+      "id": "tag_2",
+      "name": "制度"
+    },
+    {
+      "id": "tag_3",
+      "name": "技术"
+    },
+    {
+      "id": "tag_4",
+      "name": "文化"
+    },
+    {
+      "id": "tag_5",
+      "name": "改革"
+    }
+  ],
+  "categories": [
+    {
+      "id": "cat_1",
+      "name": "中国史"
+    },
+    {
+      "id": "cat_2",
+      "name": "世界史"
+    },
+    {
+      "id": "cat_3",
+      "name": "科技史"
+    }
+  ],
+  "events": [
+    {
+      "id": "evt_1",
+      "title": "秦灭六国",
+      "summary": "战国末期秦国完成统一。",
+      "time": {
+        "start": {
+          "year": -230
+        },
+        "end": {
+          "year": -221
+        },
+        "precision": "year",
+        "fuzzy": {
+          "isApprox": false
+        }
+      },
+      "tagIds": [
+        "tag_1"
+      ],
+      "categoryIds": [
+        "cat_1"
+      ],
+      "createdAt": "2026-01-11T00:00:00.000Z",
+      "updatedAt": "2026-01-11T00:00:00.000Z"
+    },
+    {
+      "id": "evt_2",
+      "title": "汉朝建立",
+      "summary": "刘邦建立汉朝。",
+      "time": {
+        "start": {
+          "year": -202
+        },
+        "precision": "year",
+        "fuzzy": {
+          "isApprox": false
+        }
+      },
+      "tagIds": [
+        "tag_2"
+      ],
+      "categoryIds": [
+        "cat_1"
+      ],
+      "createdAt": "2026-01-11T00:00:00.000Z",
+      "updatedAt": "2026-01-11T00:00:00.000Z"
+    },
+    {
+      "id": "evt_3",
+      "title": "东汉建立",
+      "summary": "光武帝建立东汉。",
+      "time": {
+        "start": {
+          "year": 25
+        },
+        "precision": "year",
+        "fuzzy": {
+          "isApprox": false
+        }
+      },
+      "tagIds": [
+        "tag_2"
+      ],
+      "categoryIds": [
+        "cat_1"
+      ],
+      "createdAt": "2026-01-11T00:00:00.000Z",
+      "updatedAt": "2026-01-11T00:00:00.000Z"
+    },
+    {
+      "id": "evt_4",
+      "title": "唐朝建立",
+      "summary": "李渊建立唐朝。",
+      "time": {
+        "start": {
+          "year": 618
+        },
+        "precision": "year",
+        "fuzzy": {
+          "isApprox": false
+        }
+      },
+      "tagIds": [
+        "tag_2"
+      ],
+      "categoryIds": [
+        "cat_1"
+      ],
+      "createdAt": "2026-01-11T00:00:00.000Z",
+      "updatedAt": "2026-01-11T00:00:00.000Z"
+    },
+    {
+      "id": "evt_5",
+      "title": "宋朝建立",
+      "summary": "赵匡胤建立宋朝。",
+      "time": {
+        "start": {
+          "year": 960
+        },
+        "precision": "year",
+        "fuzzy": {
+          "isApprox": false
+        }
+      },
+      "tagIds": [
+        "tag_2"
+      ],
+      "categoryIds": [
+        "cat_1"
+      ],
+      "createdAt": "2026-01-11T00:00:00.000Z",
+      "updatedAt": "2026-01-11T00:00:00.000Z"
+    },
+    {
+      "id": "evt_6",
+      "title": "明朝建立",
+      "summary": "朱元璋建立明朝。",
+      "time": {
+        "start": {
+          "year": 1368
+        },
+        "precision": "year",
+        "fuzzy": {
+          "isApprox": false
+        }
+      },
+      "tagIds": [
+        "tag_2"
+      ],
+      "categoryIds": [
+        "cat_1"
+      ],
+      "createdAt": "2026-01-11T00:00:00.000Z",
+      "updatedAt": "2026-01-11T00:00:00.000Z"
+    },
+    {
+      "id": "evt_7",
+      "title": "清朝建立",
+      "summary": "清军入关，清朝建立。",
+      "time": {
+        "start": {
+          "year": 1644
+        },
+        "precision": "year",
+        "fuzzy": {
+          "isApprox": false
+        }
+      },
+      "tagIds": [
+        "tag_2"
+      ],
+      "categoryIds": [
+        "cat_1"
+      ],
+      "createdAt": "2026-01-11T00:00:00.000Z",
+      "updatedAt": "2026-01-11T00:00:00.000Z"
+    },
+    {
+      "id": "evt_8",
+      "title": "工业革命",
+      "summary": "机器生产推动产业变革。",
+      "time": {
+        "start": {
+          "year": 1760
+        },
+        "end": {
+          "year": 1840
+        },
+        "precision": "year",
+        "fuzzy": {
+          "isApprox": false
+        }
+      },
+      "tagIds": [
+        "tag_3"
+      ],
+      "categoryIds": [
+        "cat_2"
+      ],
+      "createdAt": "2026-01-11T00:00:00.000Z",
+      "updatedAt": "2026-01-11T00:00:00.000Z"
+    },
+    {
+      "id": "evt_9",
+      "title": "美国独立战争",
+      "summary": "十三州争取独立的战争。",
+      "time": {
+        "start": {
+          "year": 1775
+        },
+        "end": {
+          "year": 1783
+        },
+        "precision": "year",
+        "fuzzy": {
+          "isApprox": false
+        }
+      },
+      "tagIds": [
+        "tag_1"
+      ],
+      "categoryIds": [
+        "cat_2"
+      ],
+      "createdAt": "2026-01-11T00:00:00.000Z",
+      "updatedAt": "2026-01-11T00:00:00.000Z"
+    },
+    {
+      "id": "evt_10",
+      "title": "法国大革命",
+      "summary": "法国社会与政治改革。",
+      "time": {
+        "start": {
+          "year": 1789
+        },
+        "end": {
+          "year": 1799
+        },
+        "precision": "year",
+        "fuzzy": {
+          "isApprox": false
+        }
+      },
+      "tagIds": [
+        "tag_5"
+      ],
+      "categoryIds": [
+        "cat_2"
+      ],
+      "createdAt": "2026-01-11T00:00:00.000Z",
+      "updatedAt": "2026-01-11T00:00:00.000Z"
+    },
+    {
+      "id": "evt_11",
+      "title": "电话发明",
+      "summary": "贝尔完成实用电话。",
+      "time": {
+        "start": {
+          "year": 1876
+        },
+        "precision": "year",
+        "fuzzy": {
+          "isApprox": false
+        }
+      },
+      "tagIds": [
+        "tag_3"
+      ],
+      "categoryIds": [
+        "cat_3"
+      ],
+      "createdAt": "2026-01-11T00:00:00.000Z",
+      "updatedAt": "2026-01-11T00:00:00.000Z"
+    },
+    {
+      "id": "evt_12",
+      "title": "飞行机首飞",
+      "summary": "莱特兄弟完成首飞。",
+      "time": {
+        "start": {
+          "year": 1903
+        },
+        "precision": "year",
+        "fuzzy": {
+          "isApprox": false
+        }
+      },
+      "tagIds": [
+        "tag_3"
+      ],
+      "categoryIds": [
+        "cat_3"
+      ],
+      "createdAt": "2026-01-11T00:00:00.000Z",
+      "updatedAt": "2026-01-11T00:00:00.000Z"
+    },
+    {
+      "id": "evt_13",
+      "title": "第一次世界大战",
+      "summary": "全球性大规模战争。",
+      "time": {
+        "start": {
+          "year": 1914
+        },
+        "end": {
+          "year": 1918
+        },
+        "precision": "year",
+        "fuzzy": {
+          "isApprox": false
+        }
+      },
+      "tagIds": [
+        "tag_1"
+      ],
+      "categoryIds": [
+        "cat_2"
+      ],
+      "createdAt": "2026-01-11T00:00:00.000Z",
+      "updatedAt": "2026-01-11T00:00:00.000Z"
+    },
+    {
+      "id": "evt_14",
+      "title": "第二次世界大战",
+      "summary": "二战爆发并结束。",
+      "time": {
+        "start": {
+          "year": 1939
+        },
+        "end": {
+          "year": 1945
+        },
+        "precision": "year",
+        "fuzzy": {
+          "isApprox": false
+        }
+      },
+      "tagIds": [
+        "tag_1"
+      ],
+      "categoryIds": [
+        "cat_2"
+      ],
+      "createdAt": "2026-01-11T00:00:00.000Z",
+      "updatedAt": "2026-01-11T00:00:00.000Z"
+    },
+    {
+      "id": "evt_15",
+      "title": "互联网起源",
+      "summary": "ARPANET 启动。",
+      "time": {
+        "start": {
+          "year": 1969
+        },
+        "precision": "year",
+        "fuzzy": {
+          "isApprox": false
+        }
+      },
+      "tagIds": [
+        "tag_3"
+      ],
+      "categoryIds": [
+        "cat_3"
+      ],
+      "createdAt": "2026-01-11T00:00:00.000Z",
+      "updatedAt": "2026-01-11T00:00:00.000Z"
+    },
+    {
+      "id": "evt_16",
+      "title": "月球登陆",
+      "summary": "人类首次登月。",
+      "time": {
+        "start": {
+          "year": 1969
+        },
+        "precision": "year",
+        "fuzzy": {
+          "isApprox": false
+        }
+      },
+      "tagIds": [
+        "tag_3"
+      ],
+      "categoryIds": [
+        "cat_3"
+      ],
+      "createdAt": "2026-01-11T00:00:00.000Z",
+      "updatedAt": "2026-01-11T00:00:00.000Z"
+    },
+    {
+      "id": "evt_17",
+      "title": "改革开放",
+      "summary": "中国启动改革开放政策。",
+      "time": {
+        "start": {
+          "year": 1978
+        },
+        "precision": "year",
+        "fuzzy": {
+          "isApprox": false
+        }
+      },
+      "tagIds": [
+        "tag_5"
+      ],
+      "categoryIds": [
+        "cat_1"
+      ],
+      "createdAt": "2026-01-11T00:00:00.000Z",
+      "updatedAt": "2026-01-11T00:00:00.000Z"
+    },
+    {
+      "id": "evt_18",
+      "title": "世界互联网公司成立",
+      "summary": "万维网概念推广。",
+      "time": {
+        "start": {
+          "year": 1991
+        },
+        "precision": "year",
+        "fuzzy": {
+          "isApprox": false
+        }
+      },
+      "tagIds": [
+        "tag_3"
+      ],
+      "categoryIds": [
+        "cat_3"
+      ],
+      "createdAt": "2026-01-11T00:00:00.000Z",
+      "updatedAt": "2026-01-11T00:00:00.000Z"
+    }
+  ],
+  "users": [
+    {
+      "id": "user_admin_1",
+      "name": "管理员",
+      "email": "admin@chronoatlas.local",
+      "role": "super_admin",
+      "passwordHash": "17eacb2f916024d4e228c1d2b6743b1416652b29aa342ed348d0d59456c8b49c",
+      "salt": "chronoatlas-admin-salt",
+      "createdAt": "2026-01-11T00:00:00.000Z"
+    }
+  ],
+  "sessions": [],
+  "eventVersions": [],
+  "eventApprovals": []
+}

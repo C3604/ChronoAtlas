@@ -459,10 +459,18 @@
       "role": "super_admin",
       "passwordHash": "17eacb2f916024d4e228c1d2b6743b1416652b29aa342ed348d0d59456c8b49c",
       "salt": "chronoatlas-admin-salt",
-      "createdAt": "2026-01-11T00:00:00.000Z"
+      "createdAt": "2026-01-11T00:00:00.000Z",
+      "profile": {}
     }
   ],
-  "sessions": [],
+  "sessions": [
+    {
+      "token": "2c7f5f6ae26e24925bb83c93e64ebc024c1c4763177aa2fb",
+      "userId": "user_admin_1",
+      "createdAt": "2026-01-14T00:25:28.985Z",
+      "expiresAt": "2026-01-21T00:25:28.985Z"
+    }
+  ],
   "eventVersions": [],
   "eventApprovals": []
 }

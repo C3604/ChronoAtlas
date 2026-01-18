@@ -52,6 +52,14 @@ type CategoryItem = {
 
 type UserRole = "super_admin" | "account_admin" | "content_admin" | "content_editor";
 
+type UserProfile = {
+  phone?: string;
+  title?: string;
+  organization?: string;
+  location?: string;
+  bio?: string;
+};
+
 type UserItem = {
   id: string;
   name: string;
@@ -60,6 +68,7 @@ type UserItem = {
   passwordHash: string;
   salt: string;
   createdAt: string;
+  profile?: UserProfile;
 };
 
 type SessionItem = {
@@ -134,7 +143,8 @@ const buildDefaultAdmin = (): UserItem => {
     role: "super_admin",
     salt: defaultAdminSalt,
     passwordHash: hashPassword(defaultAdminPassword, defaultAdminSalt),
-    createdAt: nowIso()
+    createdAt: nowIso(),
+    profile: {}
   };
 };
 
@@ -194,11 +204,24 @@ const ensureDataFile = () => {
 
   const raw = fs.readFileSync(dataFile, "utf-8");
   const parsed = (raw.trim() ? JSON.parse(raw) : {}) as Partial<Database>;
-  const normalizedUsers: UserItem[] = Array.isArray(parsed.users)
-    ? parsed.users.map((user) => ({ ...(user as UserItem), role: normalizeRole((user as any)?.role) }))
-    : [];
-
   let changed = false;
+  const normalizedUsers: UserItem[] = Array.isArray(parsed.users)
+    ? parsed.users.map((user) => {
+        const currentRole = (user as any)?.role;
+        const role = normalizeRole(currentRole);
+        const profile =
+          (user as any)?.profile && typeof (user as any).profile === "object"
+            ? (user as any).profile
+            : {};
+        if (currentRole !== role) {
+          changed = true;
+        }
+        if (!(user as any)?.profile || typeof (user as any).profile !== "object") {
+          changed = true;
+        }
+        return { ...(user as UserItem), role, profile };
+      })
+    : [];
   let hasSuperAdmin = false;
   const normalizedUsersWithRoles = normalizedUsers.map((user) => {
     if (user.role === "super_admin") {
@@ -445,6 +468,47 @@ const recordApproval = (
   data.eventApprovals.push(approval);
   return approval;
 };
+
+const normalizeProfile = (value: any): UserProfile => {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+  const profile = value as Record<string, any>;
+  const read = (key: keyof UserProfile) => {
+    const raw = profile[key];
+    if (typeof raw !== "string") {
+      return undefined;
+    }
+    const trimmed = raw.trim();
+    return trimmed ? trimmed : undefined;
+  };
+  return {
+    phone: read("phone"),
+    title: read("title"),
+    organization: read("organization"),
+    location: read("location"),
+    bio: read("bio")
+  };
+};
+
+const applyProfilePatch = (current: UserProfile | undefined, patch: any): UserProfile => {
+  const next: UserProfile = { ...(current ?? {}) };
+  if (!patch || typeof patch !== "object") {
+    return next;
+  }
+  const fields: (keyof UserProfile)[] = ["phone", "title", "organization", "location", "bio"];
+  fields.forEach((field) => {
+    const value = patch[field];
+    if (value === null) {
+      delete next[field];
+      return;
+    }
+    if (typeof value === "string") {
+      next[field] = value.trim();
+    }
+  });
+  return next;
+};
 const getAuthToken = (req: any) => {
   const raw = req.headers["authorization"];
   if (!raw) {
@@ -545,7 +609,13 @@ const requireContentManager = (req: any, res: any, data: Database) => {
 };
 
 const toPublicUser = (user: UserItem) => {
-  return { id: user.id, name: user.name, email: user.email, role: user.role };
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    profile: user.profile ?? {}
+  };
 };
 
 const server = createServer(async (req, res) => {
@@ -697,6 +767,7 @@ const server = createServer(async (req, res) => {
         const email = typeof payload.email === "string" ? payload.email.trim() : "";
         const password = typeof payload.password === "string" ? payload.password.trim() : "";
         const role = payload.role as UserRole;
+        const profile = normalizeProfile(payload.profile);
 
         if (!name) {
           sendError(res, 400, "BAD_REQUEST", "name 必须填写", { field: "name" });
@@ -729,7 +800,8 @@ const server = createServer(async (req, res) => {
           role,
           salt,
           passwordHash: hashPassword(password, salt),
-          createdAt: nowIso()
+          createdAt: nowIso(),
+          profile
         };
         data.users.push(user);
         writeData(data);
@@ -758,6 +830,10 @@ const server = createServer(async (req, res) => {
       const canManageAccount = hasAccountPermission(auth.user.role);
       if (!canManageAccount && !isSelf) {
         sendError(res, 403, "FORBIDDEN", "没有账号管理权限");
+        return;
+      }
+      if (target.role === "super_admin" && auth.user.role !== "super_admin") {
+        sendError(res, 403, "FORBIDDEN", "不能修改超级管理员账号");
         return;
       }
       try {
@@ -798,7 +874,14 @@ const server = createServer(async (req, res) => {
           return;
         }
 
-        const updated: UserItem = { ...target, name, email, role };
+        const updated: UserItem = {
+          ...target,
+          name,
+          email,
+          role,
+          profile:
+            payload.profile !== undefined ? applyProfilePatch(target.profile, payload.profile) : target.profile ?? {}
+        };
         if (payload.password !== undefined) {
           if (!password) {
             sendError(res, 400, "BAD_REQUEST", "password 必须填写", { field: "password" });

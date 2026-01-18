@@ -1,4 +1,11 @@
-﻿
+---
+title: 架构概览
+category: architecture
+status: current
+version: v0.1
+last_updated: 2026-01-17
+---
+
 # 架构概览
 
 本文件用于描述总体架构与模块边界。
@@ -24,8 +31,8 @@
 
 ## 4. 关键约定
 - 时间规则：天文学年号（公元前 1 年 = 0）。
-- 接口与错误码以 Doc/api-system.md 为准。
-- 目录变更先更新 Doc/structure.md。
+- 接口与错误码以 [API 合同](../api/v0.1/contract.md) 为准。
+- 目录变更先更新 [仓库目录结构与约定](../engineering/repository-structure.md)。
 
 ## 5. 文字流程图
 ```text

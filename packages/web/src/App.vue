@@ -11,6 +11,7 @@
           <!-- Desktop Navigation -->
           <div class="desktop-nav">
             <a-menu
+              v-if="menuItems.length"
               v-model:selectedKeys="selectedKeys"
               mode="horizontal"
               :items="menuItems"
@@ -37,6 +38,13 @@
                     <a-menu>
                       <a-menu-item key="role">
                         <a-tag color="success">{{ formatRole(user.role) }}</a-tag>
+                      </a-menu-item>
+                      <a-menu-divider />
+                      <a-menu-item key="content" @click="handleUserMenuClick('/content')">
+                        <ReadOutlined /> 内容编辑
+                      </a-menu-item>
+                      <a-menu-item key="profile" @click="handleUserMenuClick('/profile')">
+                        <UserOutlined /> 我的信息
                       </a-menu-item>
                       <a-menu-divider />
                       <a-menu-item key="logout" @click="handleLogout">
@@ -85,6 +93,7 @@
         v-model:open="drawerVisible"
       >
         <a-menu
+          v-if="menuItems.length"
           v-model:selectedKeys="selectedKeys"
           mode="inline"
           :items="menuItems"
@@ -96,6 +105,12 @@
               <span class="user-name">{{ user.name }}</span>
               <a-tag color="success">{{ formatRole(user.role) }}</a-tag>
             </div>
+            <a-button block class="drawer-action" @click="handleUserMenuClick('/content')">
+              <ReadOutlined /> 内容编辑
+            </a-button>
+            <a-button block class="drawer-action" @click="handleUserMenuClick('/profile')">
+              <UserOutlined /> 我的信息
+            </a-button>
             <a-button block danger @click="handleLogout">
               <LogoutOutlined /> 退出
             </a-button>
@@ -115,7 +130,7 @@
 import { ref, computed, onMounted, h, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useAppStore } from "./store/appStore";
-import { theme } from "ant-design-vue";
+import { theme, notification } from "ant-design-vue";
 import {
   HomeOutlined,
   ReadOutlined,
@@ -128,10 +143,10 @@ import {
 
 const router = useRouter();
 const route = useRoute();
-const { user, loadStatus, loadProfile, logout, formatRole } = useAppStore();
+const { apiBase, status, user, loadStatus, loadProfile, logout, formatRole } = useAppStore();
 
 // Theme State
-const isDark = ref(localStorage.getItem('theme') !== 'light');
+const isDark = ref(localStorage.getItem('theme') === 'dark');
 
 const toggleTheme = () => {
   isDark.value = !isDark.value;
@@ -141,9 +156,7 @@ const toggleTheme = () => {
 };
 
 // Initialize theme
-if (!isDark.value) {
-  document.documentElement.dataset.theme = 'light';
-}
+document.documentElement.dataset.theme = isDark.value ? 'dark' : 'light';
 
 // Theme Configuration
 const themeConfig = computed(() => ({
@@ -162,23 +175,18 @@ const drawerVisible = ref(false);
 const selectedKeys = ref<string[]>([]);
 
 // Menu Items
-const menuItems = computed(() => [
-  {
-    key: '/',
-    label: '主页',
-    icon: () => h(HomeOutlined),
-  },
-  {
-    key: '/content',
-    label: '内容编辑',
-    icon: () => h(ReadOutlined),
-  },
-  {
-    key: '/profile',
-    label: '我的信息',
-    icon: () => h(UserOutlined),
-  },
-]);
+const menuItems = computed(() => {
+  if (route.path === '/') {
+    return [];
+  }
+  return [
+    {
+      key: '/',
+      label: '主页',
+      icon: () => h(HomeOutlined),
+    }
+  ];
+});
 
 // Watch route to update selected menu
 watch(
@@ -200,6 +208,11 @@ const handleLoginClick = () => {
   drawerVisible.value = false;
 };
 
+const handleUserMenuClick = (path: string) => {
+  router.push(path);
+  drawerVisible.value = false;
+};
+
 const handleLogout = async () => {
   await logout();
   drawerVisible.value = false;
@@ -209,6 +222,14 @@ const handleLogout = async () => {
 // Lifecycle
 onMounted(async () => {
   await loadStatus();
+  if (!status.ok) {
+    const description = status.text || "服务异常";
+    notification.error({
+      message: "后端服务异常",
+      description
+    });
+    console.error(`[后端服务异常] ${description}`, { apiBase });
+  }
   await loadProfile();
 });
 </script>
@@ -293,6 +314,10 @@ onMounted(async () => {
   width: 100%;
   padding: 16px;
   border-top: 1px solid var(--color-border);
+}
+
+.drawer-action {
+  margin-bottom: 8px;
 }
 
 .user-info {

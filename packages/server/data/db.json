@@ -454,13 +454,35 @@
   "users": [
     {
       "id": "user_admin_1",
-      "name": "管理员",
+      "name": "admin",
       "email": "admin@chronoatlas.local",
       "role": "super_admin",
       "passwordHash": "17eacb2f916024d4e228c1d2b6743b1416652b29aa342ed348d0d59456c8b49c",
       "salt": "chronoatlas-admin-salt",
       "createdAt": "2026-01-11T00:00:00.000Z",
-      "profile": {}
+      "profile": {
+        "phone": "",
+        "title": "",
+        "organization": "",
+        "location": "",
+        "bio": ""
+      }
+    },
+    {
+      "id": "user_1768723053859_390",
+      "name": "Yang",
+      "email": "yang@yang.com",
+      "role": "content_editor",
+      "salt": "fdc8212ed42dc578",
+      "passwordHash": "fe3d89ba1eb23bbf62dbeada078eccb3a177a603963b54c9f342057bbf620d8f",
+      "createdAt": "2026-01-18T07:57:33.859Z",
+      "profile": {
+        "phone": "",
+        "title": "",
+        "organization": "",
+        "location": "",
+        "bio": ""
+      }
     }
   ],
   "sessions": [
@@ -469,6 +491,12 @@
       "userId": "user_admin_1",
       "createdAt": "2026-01-14T00:25:28.985Z",
       "expiresAt": "2026-01-21T00:25:28.985Z"
+    },
+    {
+      "token": "df7dc3cc7897ecc1c51baa9e2a53a9ec4de4b7e6a57c91bc",
+      "userId": "user_admin_1",
+      "createdAt": "2026-01-18T08:12:22.072Z",
+      "expiresAt": "2026-01-25T08:12:22.073Z"
     }
   ],
   "eventVersions": [],

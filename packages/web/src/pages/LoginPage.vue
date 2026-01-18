@@ -18,15 +18,15 @@
         </a-result>
       </div>
 
-      <a-form v-else layout="vertical" @finish="handleLogin">
+      <a-form v-else layout="vertical" :model="formState" @finish="handleLogin">
         <a-form-item label="邮箱" name="email" :rules="[{ required: true, message: '请输入邮箱' }]">
-          <a-input v-model:value="email" placeholder="admin@chronoatlas.local" size="large">
+          <a-input v-model:value="formState.email" placeholder="admin@chronoatlas.local" size="large">
             <template #prefix><UserOutlined /></template>
           </a-input>
         </a-form-item>
 
         <a-form-item label="密码" name="password" :rules="[{ required: true, message: '请输入密码' }]">
-          <a-input-password v-model:value="password" placeholder="admin123" size="large">
+          <a-input-password v-model:value="formState.password" placeholder="admin123" size="large">
             <template #prefix><LockOutlined /></template>
           </a-input-password>
         </a-form-item>
@@ -49,7 +49,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useAppStore } from "../store/appStore";
 import { UserOutlined, LockOutlined } from "@ant-design/icons-vue";
@@ -57,8 +57,10 @@ import { UserOutlined, LockOutlined } from "@ant-design/icons-vue";
 const router = useRouter();
 const { user, login } = useAppStore();
 
-const email = ref("");
-const password = ref("");
+const formState = reactive({
+  email: "",
+  password: ""
+});
 const loading = ref(false);
 const error = ref("");
 
@@ -66,7 +68,7 @@ const handleLogin = async () => {
   error.value = "";
   loading.value = true;
   try {
-    await login(email.value, password.value);
+    await login(formState.email, formState.password);
     await router.push("/content");
   } catch (err) {
     error.value = err instanceof Error ? err.message : "登录失败";
@@ -76,8 +78,8 @@ const handleLogin = async () => {
 };
 
 const fillDemo = () => {
-  email.value = "admin@chronoatlas.local";
-  password.value = "admin123";
+  formState.email = "admin@chronoatlas.local";
+  formState.password = "admin123";
 };
 </script>
 
@@ -95,6 +97,10 @@ const fillDemo = () => {
   background: rgba(30, 41, 59, 0.6); /* Glassmorphism */
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.08);
+}
+:global([data-theme="light"]) .login-card {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(15, 23, 42, 0.08);
 }
 .login-header {
   text-align: center;

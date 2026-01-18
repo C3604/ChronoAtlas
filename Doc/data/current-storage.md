@@ -27,6 +27,8 @@ last_updated: 2026-01-17
 ## 3. 关键约束
 
 - 关联关系通过 id 维护：事件中的 `tagIds/categoryIds` 必须能在 tags/categories 中找到对应 id。
+- 对外返回会在事件中补充 `tags/categories` 详情，但存储仍以 `tagIds/categoryIds` 为准。
+- 导入或创建事件时，如果提供名称，系统会自动匹配并创建缺失的标签或分类。
 - 时间系统使用天文学年号；时间字段规则见 ../api/v0.1/contract.md 与 ../glossary.md。
 - 数据结构以服务端实现为准；对外以 API 合同与 OpenAPI 文件为准。
 

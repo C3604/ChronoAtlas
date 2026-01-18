@@ -1,0 +1,40 @@
+﻿{
+  "mode": "merge",
+  "items": [
+    {
+      "title": "中华人民共和国成立",
+      "summary": "新中国成立。",
+      "time": {
+        "start": { "year": 1949, "month": 10, "day": 1 },
+        "precision": "day"
+      },
+      "tagIds": ["制度"],
+      "categoryIds": ["中国史"]
+    },
+    {
+      "title": "第一届现代奥运会",
+      "time": {
+        "start": { "year": 1896, "month": 4 },
+        "precision": "month"
+      },
+      "tagIds": ["文化"],
+      "categoryIds": ["世界史"]
+    },
+    {
+      "title": "工业革命",
+      "summary": "大致发生在18世纪中后期",
+      "time": {
+        "start": { "year": 1760 },
+        "end": { "year": 1840 },
+        "precision": "decade",
+        "fuzzy": {
+          "isApprox": true,
+          "approxRangeYears": 10,
+          "displayText": "约1760-1840年"
+        }
+      },
+      "tagIds": ["技术"],
+      "categoryIds": ["世界史"]
+    }
+  ]
+}

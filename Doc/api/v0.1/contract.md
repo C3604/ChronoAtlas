@@ -1,4 +1,4 @@
----
+﻿---
 title: API 合同（v0.1）
 category: api
 status: current
@@ -77,7 +77,10 @@ last_updated: 2026-01-17
 - summary（可选）
 - time（必填）
 - tagIds[]（可选）
+- tags[]（只读，标签详情数组，包含 id/name/parentId）
 - categoryIds[]（可选）
+- categories[]（只读，分类详情数组，包含 id/name/parentId）
+- 说明：创建/更新/导入时，tagIds/categoryIds 可填写名称，系统会自动匹配或创建
 - createdAt / updatedAt
 
 ### 6.4 Tag / Category
@@ -214,6 +217,7 @@ last_updated: 2026-01-17
 
 - POST /import/events：导入事件（需要内容管理权限）
   - 请求：`{ mode: "merge"|"replace", items: Event[] }`
+  - 说明：items 中的 tagIds/categoryIds 可填写名称，系统会自动匹配或创建
   - 响应：`{ mode, imported }`
 - GET /export/events：导出事件
   - 响应：`{ exportedAt, total, items }`
@@ -226,5 +230,5 @@ last_updated: 2026-01-17
 - time.start 缺失或 time 校验失败 -> BAD_REQUEST
 - precision 与时间字段不匹配 -> BAD_REQUEST
 - start > end -> BAD_REQUEST
-- tagIds/categoryIds 存在不可识别 id -> BAD_REQUEST
 - 访问不存在资源 -> NOT_FOUND
+

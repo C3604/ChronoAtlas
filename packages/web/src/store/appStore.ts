@@ -26,6 +26,8 @@ export type EventItem = {
   time: EventTime;
   tagIds: string[];
   categoryIds: string[];
+  tags?: TagItem[];
+  categories?: CategoryItem[];
   createdAt: string;
   updatedAt: string;
   createdBy?: string;

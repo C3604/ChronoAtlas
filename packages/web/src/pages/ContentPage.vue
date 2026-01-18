@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="page-container" style="padding: 24px">
     <a-typography-title :level="2">内容编辑中心</a-typography-title>
 
@@ -22,7 +22,7 @@
 
       <a-tabs v-model:activeKey="tab">
         <!-- Events Tab -->
-        <a-tab-pane key="events" tab="事件管理">
+        <a-tab-pane v-if="canWriteContent" key="events" tab="事件管理">
           <!-- Approvals Section -->
           <a-card
             v-if="canApproveContent"
@@ -97,7 +97,7 @@
               </template>
               <template v-if="column.key === 'tags'">
                 <a-space size="small" wrap>
-                  <a-tag v-for="tag in mapTags(record.tagIds)" :key="tag" color="blue">{{ tag }}</a-tag>
+                  <a-tag v-for="tag in getEventTagLabels(record)" :key="tag" color="blue">{{ tag }}</a-tag>
                   <a-tag v-for="cat in mapCategories(record.categoryIds)" :key="cat" color="cyan">{{ cat }}</a-tag>
                 </a-space>
               </template>
@@ -152,7 +152,7 @@
         </a-tab-pane>
 
         <!-- Taxonomy Tab -->
-        <a-tab-pane key="taxonomy" tab="标签与分类">
+        <a-tab-pane v-if="canManageContent" key="taxonomy" tab="标签与分类">
           <div v-if="!canManageContent">
             <a-alert message="当前账号没有内容管理权限" type="warning" />
           </div>
@@ -218,15 +218,20 @@
         </a-tab-pane>
 
         <!-- Import/Export Tab -->
-        <a-tab-pane key="import" tab="导入导出">
+        <a-tab-pane v-if="canManageContent" key="import" tab="导入导出">
           <div v-if="!canManageContent">
             <a-alert message="当前账号没有内容管理权限" type="warning" />
           </div>
           <a-row v-else :gutter="24">
             <a-col :span="12">
               <a-card title="导出事件" :bordered="false">
-                <a-button type="primary" @click="handleExport" style="margin-bottom: 16px">生成导出数据</a-button>
-                <a-textarea v-model:value="exportText" :rows="15" readonly placeholder="导出内容会显示在这里" />
+                <a-space direction="vertical" style="width: 100%;">
+                  <a-button type="primary" :loading="exportLoading" @click="handleExport">
+                    下载导出文件
+                  </a-button>
+                  <div v-if="exportNotice" style="color: #666;">{{ exportNotice }}</div>
+                  <a-alert v-if="exportError" :message="exportError" type="error" show-icon />
+                </a-space>
               </a-card>
             </a-col>
             <a-col :span="12">
@@ -238,10 +243,19 @@
                       <a-select-option value="replace">replace（替换）</a-select-option>
                     </a-select>
                   </a-form-item>
-                  <a-form-item label="JSON 数据" :help="importError" :validateStatus="importError ? 'error' : ''">
-                    <a-textarea v-model:value="importText" :rows="12" placeholder="粘贴事件 JSON" />
+                  <a-form-item label="选择文件">
+                    <a-upload
+                      :beforeUpload="handleImportFile"
+                      :showUploadList="false"
+                      accept=".json,application/json"
+                    >
+                      <a-button type="primary" :loading="importLoading">选择 JSON 文件并导入</a-button>
+                    </a-upload>
+                    <div v-if="importFileName" style="margin-top: 8px; color: #999;">
+                      已选择：{{ importFileName }}
+                    </div>
                   </a-form-item>
-                  <a-button type="primary" @click="handleImport">开始导入</a-button>
+                  <a-alert v-if="importError" :message="importError" type="error" show-icon />
                 </a-form>
               </a-card>
             </a-col>
@@ -249,7 +263,7 @@
         </a-tab-pane>
 
         <!-- Stats Tab -->
-        <a-tab-pane key="stats" tab="统计概览">
+        <a-tab-pane v-if="canWriteContent" key="stats" tab="统计概览">
           <div style="margin-bottom: 16px">
             <a-button @click="loadStats">刷新统计</a-button>
           </div>
@@ -298,7 +312,7 @@
         </a-tab-pane>
 
         <!-- Users Tab -->
-        <a-tab-pane key="users" tab="用户与权限">
+        <a-tab-pane v-if="canManageAccounts" key="users" tab="用户与权限">
           <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
              <h3>用户列表与权限</h3>
              <a-button @click="refreshUsers">刷新列表</a-button>
@@ -316,17 +330,17 @@
           </div>
           <div v-else>
             <a-card title="新增账号" size="small" style="margin-bottom: 24px">
-               <a-form layout="inline" @finish="handleCreateUser">
-                  <a-form-item>
+               <a-form layout="inline" :model="userForm" @finish="handleCreateUser">
+                  <a-form-item name="name">
                     <a-input v-model:value="userForm.name" placeholder="用户名" />
                   </a-form-item>
-                  <a-form-item>
+                  <a-form-item name="email">
                     <a-input v-model:value="userForm.email" placeholder="邮箱" />
                   </a-form-item>
-                  <a-form-item>
+                  <a-form-item name="password">
                     <a-input-password v-model:value="userForm.password" placeholder="密码" />
                   </a-form-item>
-                  <a-form-item>
+                  <a-form-item name="role">
                     <a-select v-model:value="userForm.role" style="width: 120px">
                       <a-select-option value="account_admin">账号管理员</a-select-option>
                       <a-select-option value="content_admin">内容管理员</a-select-option>
@@ -473,9 +487,10 @@
             <a-form-item label="标签">
               <a-select
                 v-model:value="eventForm.tagIds"
-                mode="multiple"
-                placeholder="选择标签"
+                mode="tags"
+                placeholder="选择或输入标签"
                 :options="tags.map(t => ({ value: t.id, label: t.name }))"
+                :tokenSeparators="[',', '，', ' ']"
               />
             </a-form-item>
           </a-col>
@@ -483,9 +498,10 @@
             <a-form-item label="分类">
               <a-select
                 v-model:value="eventForm.categoryIds"
-                mode="multiple"
-                placeholder="选择分类"
+                mode="tags"
+                placeholder="选择或输入分类"
                 :options="categories.map(c => ({ value: c.id, label: c.name }))"
+                :tokenSeparators="[',', '，', ' ']"
               />
             </a-form-item>
           </a-col>
@@ -586,13 +602,40 @@ const {
   approvalTitle
 } = useAppStore();
 
-const tab = ref<"events" | "taxonomy" | "import" | "stats" | "users">("events");
+type TabKey = "events" | "taxonomy" | "import" | "stats" | "users";
+const tab = ref<TabKey>("events");
 const loading = ref(false);
 const formError = ref("");
 const formNotice = ref("");
 const approvalError = ref("");
 const importError = ref("");
 const userError = ref("");
+
+const availableTabs = computed<TabKey[]>(() => {
+  const list: TabKey[] = [];
+  if (canWriteContent.value) {
+    list.push("events");
+  }
+  if (canManageContent.value) {
+    list.push("taxonomy", "import");
+  }
+  if (canWriteContent.value) {
+    list.push("stats");
+  }
+  if (canManageAccounts.value) {
+    list.push("users");
+  }
+  return list;
+});
+
+const ensureTabAvailable = () => {
+  if (availableTabs.value.length === 0) {
+    return;
+  }
+  if (!availableTabs.value.includes(tab.value)) {
+    tab.value = availableTabs.value[0];
+  }
+};
 
 // Modal visibility
 const eventModalVisible = ref(false);
@@ -621,8 +664,11 @@ const tagEdit = reactive({ id: "", name: "" });
 const categoryForm = reactive({ name: "" });
 const categoryEdit = reactive({ id: "", name: "" });
 
-const exportText = ref("");
-const importText = ref("");
+const exportNotice = ref("");
+const exportError = ref("");
+const exportLoading = ref(false);
+const importLoading = ref(false);
+const importFileName = ref("");
 const importMode = ref<"merge" | "replace">("merge");
 
 const userForm = reactive({
@@ -644,12 +690,18 @@ const isEditing = computed(() => eventForm.id !== "");
 // Columns Definition
 const eventColumns = [
   { title: '标题', dataIndex: 'title', key: 'title', width: 200 },
-  { title: 'ID', dataIndex: 'id', key: 'id', width: 100 },
   { title: '时间', key: 'time', width: 150 },
   { title: '精度', key: 'precision', width: 100 },
   { title: '标签/分类', key: 'tags' },
   { title: '操作', key: 'action', width: 150 },
 ];
+
+const getEventTagLabels = (event: EventItem) => {
+  if (event.tags && event.tags.length > 0) {
+    return event.tags.map((tag) => tag.name);
+  }
+  return mapTags(event.tagIds);
+};
 
 const userColumns = [
   { title: '用户名', dataIndex: 'name', key: 'name' },
@@ -864,7 +916,7 @@ const restoreEventVersion = async (eventId: string, versionId: string) => {
 
 const refreshEvents = async () => {
   loading.value = true;
-  await loadEvents();
+  await Promise.all([loadEvents(), loadTags(), loadCategories()]);
   await refreshApprovals();
   loading.value = false;
 };
@@ -974,31 +1026,52 @@ const deleteCategoryItem = async (id: string) => {
 };
 
 const handleExport = async () => {
-  const data = await exportEvents();
-  exportText.value = JSON.stringify(data, null, 2);
+  exportError.value = "";
+  exportNotice.value = "";
+  exportLoading.value = true;
+  try {
+    const data = await exportEvents();
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `events-export-${timestamp}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    exportNotice.value = "已开始下载导出文件";
+  } catch (error) {
+    exportError.value = error instanceof Error ? error.message : "导出失败";
+  } finally {
+    exportLoading.value = false;
+  }
 };
 
-const handleImport = async () => {
+const handleImportFile = async (file: File) => {
   importError.value = "";
-  if (!importText.value.trim()) {
-    importError.value = "请粘贴要导入的 JSON";
-    return;
-  }
+  importFileName.value = file.name;
+  importLoading.value = true;
   try {
-    const parsed = JSON.parse(importText.value);
+    const text = await file.text();
+    const parsed = JSON.parse(text);
     const items = Array.isArray(parsed) ? parsed : parsed.items;
     if (!Array.isArray(items)) {
       importError.value = "JSON 必须是数组或包含 items 数组";
-      return;
+      return false;
     }
     await importEvents(importMode.value, items);
     await refreshEvents();
     await loadStats();
-    importText.value = "";
     alert("导入成功");
   } catch (error) {
     importError.value = error instanceof Error ? error.message : "导入失败";
+  } finally {
+    importLoading.value = false;
   }
+  return false;
 };
 
 const refreshUsers = async () => {
@@ -1104,6 +1177,10 @@ const refreshAll = async () => {
   await refreshUsers();
 };
 
+watch(availableTabs, () => {
+  ensureTabAvailable();
+}, { immediate: true });
+
 onMounted(async () => {
   await refreshAll();
 });
@@ -1132,3 +1209,4 @@ watch(tab, async (value) => {
   }
 });
 </script>
+

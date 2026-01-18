@@ -1,0 +1,81 @@
+你是一个资深全栈架构师 + NestJS 企业级工程师。请在“历史事件WEB程序(ChronoAtlas)”现有代码基础上，把当前已有的登录/鉴权方案，迁移为 NestJS 官方级 Auth + Mail 组合方案，并确保可生产落地。
+
+# 目标与范围（必须全部完成）
+1) 后端（NestJS）
+- 使用 Passport（passport-local + passport-jwt）实现登录
+- 使用 JWT + Refresh Token（双 token）实现鉴权与续期
+- 使用 RBAC（角色权限）实现权限分级：SUPER_ADMIN / ADMIN / EDITOR / USER
+- 使用 @nestjs-modules/mailer + nodemailer 实现 SMTP 邮件能力
+- 完整用户生命周期：注册、登录、登出、刷新token、邮箱验证、重置密码、修改密码、修改用户信息、管理员创建/禁用用户、角色分配
+- 安全与边界：限流、密码强度、重放保护、token 旋转、验证码/邮件token过期、异常码统一、审计字段
+- 适配 PostgreSQL（使用项目当前 ORM：若项目已有 Prisma/TypeORM 则沿用；没有则新增一种但必须说明迁移影响）
+
+2) 前端（Vue 3 + TS + Vite）
+- 适配新后端 API：注册/登录/邮箱验证/忘记密码/重置密码/刷新 token/用户信息/角色权限
+- token 存储策略：优先 httpOnly cookie（若现有是 localStorage，需要给出迁移实现并说明CSRF策略）
+- 路由守卫：根据角色控制页面访问（四级角色）
+- UI/交互：邮件验证引导页、重置密码页、个人资料页、管理员用户管理页（可以先实现最小可用 UI，但 API 对接必须完整）
+- 错误提示与状态：对接后端错误码表，显示友好文案
+
+3) 数据库与数据结构（PostgreSQL）
+- 设计并实现用户表/角色表/权限映射/会话或refresh token存储/邮件验证token/密码重置token
+- 保留兼容已有数据：若已有 user 表字段不一致，提供迁移脚本/SQL 或 ORM migration
+- 必须包含：id(uuid), email(唯一), password_hash, display_name, roles, is_active, email_verified, created_at, updated_at, last_login_at
+- refresh token 存储必须可撤销：建议 hash 存储 + 轮换机制 + 设备信息(user_agent/ip) + 过期
+- 邮件验证、重置密码 token 必须一次性使用、可过期、可撤销、存 hash
+
+4) API（OpenAPI & 业务语义）
+- 更新/新增 OpenAPI 文档：每个接口必须写清楚业务语义、权限、边界情况、错误码、字段校验规则
+- 产出“企业级 API 文档”风格：
+  - 错误码表（如 AUTH_001、AUTH_002…）
+  - 字段校验规则（email、password复杂度、displayName长度等）
+  - 权限矩阵（角色 × 接口）
+  - 典型流程（注册->发验证邮件->验证->登录->刷新token->修改资料->忘记密码等）
+- 与前端约定统一响应格式：{ code, message, data, traceId }
+
+5) 项目文档同步
+- 更新 ADR/README/部署说明：
+  - 环境变量（JWT_SECRET、JWT_REFRESH_SECRET、SMTP_HOST/PORT/USER/PASS、APP_URL 等）
+  - 本地开发：如何跑起来、如何测试邮件（支持 dev 模式下把邮件输出到日志或写入本地文件）
+  - 安全注意事项：cookie/CSRF/CORS/RateLimit
+- 若项目已有 docs 目录或 API md 文件，全部同步更新
+
+# 具体实现要求（强制）
+A. 安全策略
+- 密码加密：bcrypt（>= 10 rounds）
+- 登录失败策略：可选锁定/延迟（至少要有 rate limit）
+- Refresh token：必须实现 rotation（每次刷新签发新refresh，旧的作废）
+- Token 放在 cookie 时：实现 CSRF 防护（SameSite=strict/lax + CSRF token 或 double submit）
+- 邮箱验证/重置密码：使用随机 token（>=32 bytes），只存 hash，设置过期（如 15min/24h 可配置）
+- 邮件模板：最少提供 text 模板；可选 handlebars/ejs
+
+B. 可维护性
+- 模块化：AuthModule、UsersModule、MailModule、Roles/Permissions(或 AccessControlModule)
+- 统一配置：ConfigModule + env 校验（zod/joi）
+- 统一异常：HttpExceptionFilter/错误码枚举
+- DTO + class-validator：所有入参校验完备
+- 单元测试/最小 e2e：至少覆盖注册、登录、刷新、验证邮件、重置密码的 happy path（若项目已有测试框架则沿用）
+
+C. 兼容与迁移
+- 读取并分析现有代码：说明当前登录/鉴权机制是什么、涉及哪些文件
+- 提供迁移步骤：
+  1) 数据库迁移
+  2) 后端模块替换/新增
+  3) 前端 API 适配与路由守卫改造
+  4) 文档更新
+- 尽量减少破坏性改动：若必须 breaking change，列出清单与对应前端改法
+
+# 输出形式（你必须交付）
+1) 代码改动：直接在仓库中完成（按项目结构提交）
+2) 新增/更新的文件清单（路径 + 目的）
+3) OpenAPI/企业文档更新（md 或 yaml/json）
+4) 一份 MIGRATION.md：说明如何从旧 auth 迁移到新方案（含配置、SQL、风险点）
+5) 简要验收清单：我应该如何手工验证每个功能
+
+# 约束
+- 必须使用 NestJS 官方生态实现，不使用第三方“整套 Auth 平台”（例如不引入 Keycloak/Supertokens 这类外置系统）
+- 代码风格必须与现有项目一致（lint/prettier/tsconfig）
+- 若遇到不确定项，优先从现有仓库代码与文档中推断；仅在无法推断时才在输出中列出“需要我确认”的最小问题集
+- 不要只给建议，要直接实现并提交可运行代码
+
+开始前先扫描仓库结构，找出现有的 auth 相关模块/中间件/守卫/用户表结构，然后按以上要求完成全量迁移。

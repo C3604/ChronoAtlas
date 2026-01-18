@@ -1,22 +1,5 @@
 <template>
   <div class="page-container">
-    <!-- Hero Section -->
-    <div class="hero-section">
-      <a-space class="status-bar">
-        <a-tag color="blue">服务状态</a-tag>
-        <a-tag :color="status.ok ? 'success' : 'error'">
-          <template #icon>
-            <check-circle-outlined v-if="status.ok" />
-            <close-circle-outlined v-else />
-          </template>
-          {{ status.text }}
-        </a-tag>
-        <a-typography-text type="secondary" class="status-meta">
-          API: {{ apiBase }}
-        </a-typography-text>
-      </a-space>
-    </div>
-
     <!-- Filters Section -->
     <a-card class="filter-card" :bordered="false">
       <template #title>
@@ -153,39 +136,37 @@
       :width="drawerWidth"
     >
       <template v-if="selectedEvent">
-        <a-descriptions column="1" bordered size="small" class="event-descriptions">
-          <a-descriptions-item label="ID">{{ selectedEvent.id }}</a-descriptions-item>
-          <a-descriptions-item label="标题">
-            <a-typography-text strong>{{ selectedEvent.title }}</a-typography-text>
-          </a-descriptions-item>
-          <a-descriptions-item label="时间">
-            <calendar-outlined /> {{ formatEventTime(selectedEvent.time) }}
-          </a-descriptions-item>
-          <a-descriptions-item label="精度">
-            <a-tag>{{ selectedEvent.time.precision }}</a-tag>
-          </a-descriptions-item>
-          <a-descriptions-item label="标签">
-            <a-space wrap>
-              <a-tag v-for="tag in mapTags(selectedEvent.tagIds)" :key="tag" color="cyan">
-                {{ tag }}
-              </a-tag>
-              <span v-if="!selectedEvent.tagIds?.length" class="text-muted">无</span>
+        <a-form layout="vertical" class="detail-form">
+          <a-form-item label="标题">
+            <a-input :value="selectedEvent.title" readonly />
+          </a-form-item>
+          <a-form-item label="时间">
+            <a-input :value="formatEventTime(selectedEvent.time)" readonly />
+          </a-form-item>
+          <a-form-item label="精度">
+            <a-input :value="selectedEvent.time.precision" readonly />
+          </a-form-item>
+          <a-form-item label="标签">
+            <a-space size="small" wrap>
+              <a-tag v-for="tag in eventTagLabels" :key="tag" color="blue">{{ tag }}</a-tag>
+              <span v-if="eventTagLabels.length === 0">无</span>
             </a-space>
-          </a-descriptions-item>
-          <a-descriptions-item label="分类">
-            <a-space wrap>
-              <a-tag v-for="cat in mapCategories(selectedEvent.categoryIds)" :key="cat" color="purple">
-                {{ cat }}
-              </a-tag>
-              <span v-if="!selectedEvent.categoryIds?.length" class="text-muted">无</span>
-            </a-space>
-          </a-descriptions-item>
-          <a-descriptions-item label="摘要">
-            <a-typography-paragraph class="summary-text">
-              {{ selectedEvent.summary || "暂无摘要" }}
-            </a-typography-paragraph>
-          </a-descriptions-item>
-        </a-descriptions>
+          </a-form-item>
+          <a-form-item label="分类">
+            <a-input
+              :value="mapCategories(selectedEvent.categoryIds).join('、') || '无'"
+              readonly
+            />
+          </a-form-item>
+          <a-form-item label="摘要">
+            <a-textarea
+              :value="selectedEvent.summary || '暂无摘要'"
+              readonly
+              :auto-size="{ minRows: 4, maxRows: 8 }"
+              class="detail-textarea"
+            />
+          </a-form-item>
+        </a-form>
       </template>
     </a-drawer>
   </div>
@@ -194,8 +175,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import {
-  CheckCircleOutlined,
-  CloseCircleOutlined,
   ReloadOutlined,
   SearchOutlined,
   CalendarOutlined,
@@ -207,13 +186,10 @@ import {
 import { EventItem, useAppStore } from "../store/appStore";
 
 const {
-  apiBase,
-  status,
   filters,
   events,
   tags,
   categories,
-  loadStatus,
   loadTags,
   loadCategories,
   loadEvents,
@@ -249,6 +225,16 @@ const drawerVisible = computed({
   set: (val) => {
     if (!val) selectedEvent.value = null;
   }
+});
+
+const eventTagLabels = computed(() => {
+  if (!selectedEvent.value) {
+    return [];
+  }
+  if (selectedEvent.value.tags && selectedEvent.value.tags.length > 0) {
+    return selectedEvent.value.tags.map((tag) => tag.name);
+  }
+  return mapTags(selectedEvent.value.tagIds);
 });
 
 const toNumber = (value: string | number) => {
@@ -316,7 +302,6 @@ const handleReset = async () => {
 };
 
 onMounted(async () => {
-  await loadStatus();
   await Promise.all([loadTags(), loadCategories()]);
   await handleApply();
 });
@@ -327,32 +312,6 @@ onMounted(async () => {
   max-width: 1200px;
   margin: 0 auto;
   padding: 24px;
-}
-
-/* Hero Section */
-.hero-section {
-  text-align: center;
-  margin-bottom: 24px;
-  padding: 24px;
-  background: radial-gradient(circle at top right, rgba(16, 185, 129, 0.1), transparent), 
-              var(--color-bg-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.status-bar {
-  background: rgba(var(--color-bg-default), 0.5);
-  padding: 8px 16px;
-  border-radius: 20px;
-  border: 1px solid var(--color-border);
-}
-
-.status-meta {
-  color: var(--color-text-secondary) !important;
 }
 
 /* Filter Card */
@@ -466,24 +425,18 @@ onMounted(async () => {
   box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
 }
 
-/* Event Descriptions Fix */
-.event-descriptions :deep(.ant-descriptions-item-content) {
-  word-break: break-word;
-  overflow-wrap: break-word;
-  max-width: 100%;
+/* Detail Form */
+.detail-form :deep(.ant-input[readonly]),
+.detail-form :deep(.ant-input-textarea textarea[readonly]) {
+  cursor: default;
 }
 
-.summary-text {
-  word-break: break-word;
+.detail-textarea {
   white-space: pre-wrap;
 }
 
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
-  .hero-section {
-    padding: 16px;
-  }
-  
   .gantt-header {
     padding-left: 0;
     display: none; 

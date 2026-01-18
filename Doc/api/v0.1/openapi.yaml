@@ -878,10 +878,12 @@ components:
           type: array
           items:
             type: string
+          description: 创建/更新/导入时可填写名称，系统会自动匹配或创建
         categoryIds:
           type: array
           items:
             type: string
+          description: 创建/更新/导入时可填写名称，系统会自动匹配或创建
 
     EventPatch:
       type: object
@@ -896,10 +898,12 @@ components:
           type: array
           items:
             type: string
+          description: 创建/更新/导入时可填写名称，系统会自动匹配或创建
         categoryIds:
           type: array
           items:
             type: string
+          description: 创建/更新/导入时可填写名称，系统会自动匹配或创建
 
     Event:
       allOf:
@@ -909,6 +913,14 @@ components:
           properties:
             id:
               type: string
+            tags:
+              type: array
+              items:
+                $ref: "#/components/schemas/Tag"
+            categories:
+              type: array
+              items:
+                $ref: "#/components/schemas/Category"
             createdAt:
               type: string
             updatedAt:

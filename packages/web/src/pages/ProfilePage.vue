@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="page-container">
     <a-row :gutter="24" justify="center">
       <a-col :xs="24" :sm="24" :md="20" :lg="16">
@@ -15,7 +15,6 @@
 
           <div v-else>
             <a-descriptions title="当前账号" bordered class="mb-6" :column="{ xs: 1, sm: 2 }">
-              <a-descriptions-item label="ID">{{ user.id }}</a-descriptions-item>
               <a-descriptions-item label="角色">
                 <a-tag color="blue">{{ formatRole(user.role) }}</a-tag>
               </a-descriptions-item>
@@ -24,45 +23,45 @@
 
             <a-divider>编辑资料</a-divider>
 
-            <a-form layout="vertical" @finish="handleSave">
+            <a-form layout="vertical" :model="form" @finish="handleSave">
               <a-row :gutter="16">
                 <a-col :xs="24" :sm="12">
-                  <a-form-item label="用户名">
+                  <a-form-item name="name" label="用户名">
                     <a-input v-model:value="form.name" />
                   </a-form-item>
                 </a-col>
                 <a-col :xs="24" :sm="12">
-                  <a-form-item label="邮箱">
+                  <a-form-item name="email" label="邮箱">
                     <a-input v-model:value="form.email" />
                   </a-form-item>
                 </a-col>
                 <a-col :span="24">
-                  <a-form-item label="新密码" help="留空表示不修改">
+                  <a-form-item name="password" label="新密码" help="留空表示不修改">
                     <a-input-password v-model:value="form.password" placeholder="********" />
                   </a-form-item>
                 </a-col>
                 <a-col :xs="24" :sm="12">
-                   <a-form-item label="电话">
+                   <a-form-item name="profile.phone" label="电话">
                      <a-input v-model:value="form.profile.phone" placeholder="可选" />
                    </a-form-item>
                 </a-col>
                 <a-col :xs="24" :sm="12">
-                   <a-form-item label="职位">
+                   <a-form-item name="profile.title" label="职位">
                      <a-input v-model:value="form.profile.title" placeholder="可选" />
                    </a-form-item>
                 </a-col>
                 <a-col :xs="24" :sm="12">
-                   <a-form-item label="机构">
+                   <a-form-item name="profile.organization" label="机构">
                      <a-input v-model:value="form.profile.organization" placeholder="可选" />
                    </a-form-item>
                 </a-col>
                 <a-col :xs="24" :sm="12">
-                   <a-form-item label="所在地">
+                   <a-form-item name="profile.location" label="所在地">
                      <a-input v-model:value="form.profile.location" placeholder="可选" />
                    </a-form-item>
                 </a-col>
                 <a-col :span="24">
-                  <a-form-item label="个人简介">
+                  <a-form-item name="profile.bio" label="个人简介">
                     <a-textarea v-model:value="form.profile.bio" :rows="3" placeholder="可选" />
                   </a-form-item>
                 </a-col>
@@ -155,3 +154,4 @@ const handleSave = async () => {
 .mb-6 { margin-bottom: 24px; }
 .form-actions { text-align: right; margin-top: 16px; }
 </style>
+

@@ -2,10 +2,88 @@
 import path from "path";
 import { createServer } from "http";
 import crypto from "crypto";
+import dotenv from "dotenv";
+import { Pool } from "pg";
 
 const port = 3000;
 const bodySizeLimit = 1_000_000;
 const sessionHours = 24 * 7;
+
+const resolveEnvPath = () => {
+  const cwd = process.cwd();
+  const direct = path.resolve(cwd, ".env");
+  if (fs.existsSync(direct)) {
+    return direct;
+  }
+  const parent = path.resolve(cwd, "..", ".env");
+  if (fs.existsSync(parent)) {
+    return parent;
+  }
+  const grandParent = path.resolve(cwd, "..", "..", ".env");
+  if (fs.existsSync(grandParent)) {
+    return grandParent;
+  }
+  return undefined;
+};
+
+const envPath = resolveEnvPath();
+if (envPath) {
+  dotenv.config({ path: envPath });
+} else {
+  dotenv.config();
+}
+
+const readRequiredEnv = (key: string) => {
+  const value = process.env[key];
+  if (!value || value.trim() === "") {
+    throw new Error(`缺少环境变量 ${key}`);
+  }
+  return value.trim();
+};
+
+const normalizeIdentifier = (value: string, label: string) => {
+  const trimmed = value.trim();
+  if (!/^[a-zA-Z0-9_]+$/.test(trimmed)) {
+    throw new Error(`${label} 只能包含字母、数字或下划线`);
+  }
+  return trimmed.toLowerCase();
+};
+
+const pgPortRaw = process.env.PG_PORT ?? "5432";
+const pgPort = Number(pgPortRaw);
+if (!Number.isInteger(pgPort)) {
+  throw new Error("PG_PORT 必须是数字");
+}
+
+const pgSslEnabled = (process.env.PG_SSL ?? "").toLowerCase() === "true";
+const pgSsl = pgSslEnabled ? { rejectUnauthorized: false } : undefined;
+const schemaName = normalizeIdentifier(process.env.PG_SCHEMA ?? "public", "PG_SCHEMA");
+const tableName = normalizeIdentifier(process.env.PG_TABLE ?? "app_data", "PG_TABLE");
+const qualifiedAppDataTable = `"${schemaName}"."${tableName}"`;
+
+const pool = new Pool({
+  host: readRequiredEnv("PG_HOST"),
+  port: pgPort,
+  user: readRequiredEnv("PG_USER"),
+  password: readRequiredEnv("PG_PASSWORD"),
+  database: readRequiredEnv("PG_DATABASE"),
+  ssl: pgSsl
+});
+
+const execQuery = async (sql: string, params: any[] = []) => {
+  try {
+    return await pool.query(sql, params);
+  } catch (error) {
+    console.error("SQL 执行失败：", sql, params);
+    throw error;
+  }
+};
+
+const logDbRoles = async () => {
+  const result = await execQuery("SELECT current_user, session_user, current_role");
+  const row = result.rows[0] ?? {};
+  console.log("数据库身份：", row);
+};
 
 type TimePoint = {
   year: number;
@@ -94,6 +172,8 @@ type EventDraft = {
   time: EventTime;
   tagIds: string[];
   categoryIds: string[];
+  tags?: TagItem[];
+  categories?: CategoryItem[];
 };
 
 type EventApproval = {
@@ -121,8 +201,9 @@ type Database = {
   eventApprovals: EventApproval[];
 };
 
-const dataDir = path.resolve(__dirname, "..", "data");
-const dataFile = path.resolve(dataDir, "db.json");
+const legacyDataFile = path.resolve(__dirname, "..", "data", "db.json");
+const appDataTable = qualifiedAppDataTable;
+const appDataId = 1;
 
 const defaultAdminEmail = "admin@chronoatlas.local";
 const defaultAdminPassword = "admin123";
@@ -170,10 +251,6 @@ const buildSeedData = (): Database => {
   };
 };
 
-const writeData = (data: Database) => {
-  fs.writeFileSync(dataFile, JSON.stringify(data, null, 2), "utf-8");
-};
-
 const normalizeRole = (value: any): UserRole => {
   if (
     value === "super_admin" ||
@@ -192,18 +269,12 @@ const normalizeRole = (value: any): UserRole => {
   return "content_editor";
 };
 
-const ensureDataFile = () => {
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
+type NormalizeResult = {
+  data: Database;
+  changed: boolean;
+};
 
-  if (!fs.existsSync(dataFile)) {
-    writeData(buildSeedData());
-    return;
-  }
-
-  const raw = fs.readFileSync(dataFile, "utf-8");
-  const parsed = (raw.trim() ? JSON.parse(raw) : {}) as Partial<Database>;
+const normalizeDatabase = (parsed: Partial<Database>): NormalizeResult => {
   let changed = false;
   const normalizedUsers: UserItem[] = Array.isArray(parsed.users)
     ? parsed.users.map((user) => {
@@ -277,15 +348,88 @@ const ensureDataFile = () => {
     }
   }
 
-  if (changed) {
-    writeData(normalized);
+  return { data: normalized, changed };
+};
+
+const readLegacyData = (): NormalizeResult | null => {
+  if (!fs.existsSync(legacyDataFile)) {
+    return null;
+  }
+  const raw = fs.readFileSync(legacyDataFile, "utf-8");
+  if (!raw.trim()) {
+    return { data: buildSeedData(), changed: true };
+  }
+  try {
+    const parsed = JSON.parse(raw) as Partial<Database>;
+    return normalizeDatabase(parsed);
+  } catch (error) {
+    return { data: buildSeedData(), changed: true };
   }
 };
 
-const readData = (): Database => {
-  ensureDataFile();
-  const raw = fs.readFileSync(dataFile, "utf-8");
-  return JSON.parse(raw) as Database;
+let initPromise: Promise<void> | null = null;
+
+const ensureDatabaseReady = async () => {
+  if (initPromise) {
+    return initPromise;
+  }
+  initPromise = (async () => {
+    if (schemaName !== "public") {
+      await execQuery(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
+    }
+    await logDbRoles();
+    await execQuery(
+      `CREATE TABLE IF NOT EXISTS ${appDataTable} (
+        id integer PRIMARY KEY,
+        payload jsonb NOT NULL,
+        updated_at timestamptz NOT NULL DEFAULT NOW()
+      )`
+    );
+
+    const existing = await execQuery(`SELECT payload FROM ${appDataTable} WHERE id = $1`, [appDataId]);
+    if (existing.rowCount === 0) {
+      const legacy = readLegacyData();
+      const seed = legacy?.data ?? buildSeedData();
+      await execQuery(`INSERT INTO ${appDataTable} (id, payload) VALUES ($1, $2::jsonb)`, [
+        appDataId,
+        JSON.stringify(seed)
+      ]);
+      return;
+    }
+
+    const payload = (existing.rows[0]?.payload ?? {}) as Partial<Database>;
+    const normalized = normalizeDatabase(payload);
+    if (normalized.changed) {
+      await execQuery(`UPDATE ${appDataTable} SET payload = $1::jsonb, updated_at = NOW() WHERE id = $2`, [
+        JSON.stringify(normalized.data),
+        appDataId
+      ]);
+    }
+  })();
+  return initPromise;
+};
+
+const readData = async (): Promise<Database> => {
+  await ensureDatabaseReady();
+  const result = await execQuery(`SELECT payload FROM ${appDataTable} WHERE id = $1`, [appDataId]);
+  const payload = result.rows[0]?.payload as Database | undefined;
+  if (!payload) {
+    const seed = buildSeedData();
+    await execQuery(`INSERT INTO ${appDataTable} (id, payload) VALUES ($1, $2::jsonb)`, [
+      appDataId,
+      JSON.stringify(seed)
+    ]);
+    return seed;
+  }
+  return payload;
+};
+
+const writeData = async (data: Database) => {
+  await ensureDatabaseReady();
+  await execQuery(`UPDATE ${appDataTable} SET payload = $1::jsonb, updated_at = NOW() WHERE id = $2`, [
+    JSON.stringify(data),
+    appDataId
+  ]);
 };
 const precisionOrder: Record<EventTime["precision"], number> = {
   century: 1,
@@ -409,6 +553,176 @@ const ensureCategoriesExist = (data: Database, categoryIds: string[]) => {
   return categoryIds.filter((id) => !categorySet.has(id));
 };
 
+const normalizeNameKey = (value: string) => value.trim().toLowerCase();
+
+const normalizeIdList = (value: any) => {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    return [value];
+  }
+  return [];
+};
+
+const normalizeInputList = (value: any, extraNames: string[] = []) => {
+  const list = normalizeIdList(value).concat(extraNames);
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of list) {
+    if (typeof item !== "string") {
+      continue;
+    }
+    const trimmed = item.trim();
+    if (!trimmed) {
+      continue;
+    }
+    const key = normalizeNameKey(trimmed);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    result.push(trimmed);
+  }
+  return result;
+};
+
+const collectIncomingNames = (rawItems: any) => {
+  const names: string[] = [];
+  const nameById = new Map<string, string>();
+  if (!Array.isArray(rawItems)) {
+    return { names, nameById };
+  }
+  for (const item of rawItems) {
+    if (!item || typeof item !== "object") {
+      continue;
+    }
+    const rawName = (item as any).name;
+    const rawId = (item as any).id;
+    const name = typeof rawName === "string" ? rawName.trim() : "";
+    const id = typeof rawId === "string" ? rawId.trim() : "";
+    if (name) {
+      names.push(name);
+    }
+    if (id && name) {
+      nameById.set(id, name);
+    }
+  }
+  return { names, nameById };
+};
+
+const buildTagMap = (data: Database) => {
+  return new Map(data.tags.map((tag) => [tag.id, tag]));
+};
+
+const buildCategoryMap = (data: Database) => {
+  return new Map(data.categories.map((category) => [category.id, category]));
+};
+
+const buildEventView = (
+  event: EventItem,
+  tagMap: Map<string, TagItem>,
+  categoryMap: Map<string, CategoryItem>
+) => {
+  const tags = event.tagIds
+    .map((id) => tagMap.get(id))
+    .filter((tag): tag is TagItem => Boolean(tag));
+  const categories = event.categoryIds
+    .map((id) => categoryMap.get(id))
+    .filter((category): category is CategoryItem => Boolean(category));
+  return { ...event, tags, categories };
+};
+
+const resolveTagIds = (data: Database, rawIds: any, rawTags?: any) => {
+  const incoming = collectIncomingNames(rawTags);
+  const inputs = normalizeInputList(rawIds, incoming.names);
+  const idMap = new Map<string, TagItem>();
+  const nameMap = new Map<string, TagItem>();
+  data.tags.forEach((tag) => {
+    idMap.set(tag.id, tag);
+    nameMap.set(normalizeNameKey(tag.name), tag);
+  });
+
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const input of inputs) {
+    let tag = idMap.get(input) ?? nameMap.get(normalizeNameKey(input));
+    if (!tag) {
+      const incomingName = incoming.nameById.get(input);
+      if (incomingName) {
+        const key = normalizeNameKey(incomingName);
+        tag = nameMap.get(key);
+        if (!tag) {
+          tag = { id: createId("tag"), name: incomingName, parentId: null };
+          data.tags.push(tag);
+          idMap.set(tag.id, tag);
+          nameMap.set(key, tag);
+        }
+      }
+    }
+    if (!tag) {
+      const key = normalizeNameKey(input);
+      tag = nameMap.get(key);
+      if (!tag) {
+        tag = { id: createId("tag"), name: input, parentId: null };
+        data.tags.push(tag);
+        idMap.set(tag.id, tag);
+        nameMap.set(key, tag);
+      }
+    }
+    if (!seen.has(tag.id)) {
+      seen.add(tag.id);
+      result.push(tag.id);
+    }
+  }
+  return result;
+};
+
+const resolveCategoryIds = (data: Database, rawIds: any, rawCategories?: any) => {
+  const incoming = collectIncomingNames(rawCategories);
+  const inputs = normalizeInputList(rawIds, incoming.names);
+  const idMap = new Map<string, CategoryItem>();
+  const nameMap = new Map<string, CategoryItem>();
+  data.categories.forEach((category) => {
+    idMap.set(category.id, category);
+    nameMap.set(normalizeNameKey(category.name), category);
+  });
+
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const input of inputs) {
+    let category = idMap.get(input) ?? nameMap.get(normalizeNameKey(input));
+    if (!category) {
+      const incomingName = incoming.nameById.get(input);
+      if (incomingName) {
+        const key = normalizeNameKey(incomingName);
+        category = nameMap.get(key);
+        if (!category) {
+          category = { id: createId("cat"), name: incomingName, parentId: null };
+          data.categories.push(category);
+          idMap.set(category.id, category);
+          nameMap.set(key, category);
+        }
+      }
+    }
+    if (!category) {
+      const key = normalizeNameKey(input);
+      category = nameMap.get(key);
+      if (!category) {
+        category = { id: createId("cat"), name: input, parentId: null };
+        data.categories.push(category);
+        idMap.set(category.id, category);
+        nameMap.set(key, category);
+      }
+    }
+    if (!seen.has(category.id)) {
+      seen.add(category.id);
+      result.push(category.id);
+    }
+  }
+  return result;
+};
+
 const mergeEventTime = (current: EventTime, update: Partial<EventTime>) => {
   return {
     start: update.start ?? current.start,
@@ -522,7 +836,7 @@ const getAuthToken = (req: any) => {
   return text;
 };
 
-const getAuthContext = (req: any, data: Database) => {
+const getAuthContext = async (req: any, data: Database) => {
   const token = getAuthToken(req);
   if (!token) {
     return null;
@@ -534,7 +848,7 @@ const getAuthContext = (req: any, data: Database) => {
   const session = data.sessions[sessionIndex];
   if (new Date(session.expiresAt).getTime() < Date.now()) {
     data.sessions.splice(sessionIndex, 1);
-    writeData(data);
+    await writeData(data);
     return null;
   }
   const user = data.users.find((item) => item.id === session.userId);
@@ -544,8 +858,8 @@ const getAuthContext = (req: any, data: Database) => {
   return { user, session, token };
 };
 
-const requireAuth = (req: any, res: any, data: Database) => {
-  const auth = getAuthContext(req, data);
+const requireAuth = async (req: any, res: any, data: Database) => {
+  const auth = await getAuthContext(req, data);
   if (!auth) {
     sendError(res, 401, "UNAUTHORIZED", "需要登录后操作");
     return null;
@@ -560,8 +874,8 @@ const hasContentWritePermission = (role: UserRole) =>
 const hasContentApprovePermission = (role: UserRole) => role === "super_admin" || role === "content_admin";
 const isContentEditor = (role: UserRole) => role === "content_editor";
 
-const requireAccountAdmin = (req: any, res: any, data: Database) => {
-  const auth = requireAuth(req, res, data);
+const requireAccountAdmin = async (req: any, res: any, data: Database) => {
+  const auth = await requireAuth(req, res, data);
   if (!auth) {
     return null;
   }
@@ -572,8 +886,8 @@ const requireAccountAdmin = (req: any, res: any, data: Database) => {
   return auth;
 };
 
-const requireContentWriter = (req: any, res: any, data: Database) => {
-  const auth = requireAuth(req, res, data);
+const requireContentWriter = async (req: any, res: any, data: Database) => {
+  const auth = await requireAuth(req, res, data);
   if (!auth) {
     return null;
   }
@@ -584,8 +898,8 @@ const requireContentWriter = (req: any, res: any, data: Database) => {
   return auth;
 };
 
-const requireContentApprover = (req: any, res: any, data: Database) => {
-  const auth = requireAuth(req, res, data);
+const requireContentApprover = async (req: any, res: any, data: Database) => {
+  const auth = await requireAuth(req, res, data);
   if (!auth) {
     return null;
   }
@@ -596,8 +910,8 @@ const requireContentApprover = (req: any, res: any, data: Database) => {
   return auth;
 };
 
-const requireContentManager = (req: any, res: any, data: Database) => {
-  const auth = requireAuth(req, res, data);
+const requireContentManager = async (req: any, res: any, data: Database) => {
+  const auth = await requireAuth(req, res, data);
   if (!auth) {
     return null;
   }
@@ -682,7 +996,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathParts[0] === "auth") {
-    const data = readData();
+    const data = await readData();
 
     if (pathParts[1] === "login" && method === "POST") {
       try {
@@ -710,7 +1024,7 @@ const server = createServer(async (req, res) => {
         const now = nowIso();
         const expiresAt = new Date(Date.now() + sessionHours * 60 * 60 * 1000).toISOString();
         data.sessions.push({ token, userId: user.id, createdAt: now, expiresAt });
-        writeData(data);
+        await writeData(data);
         sendJson(res, 200, { token, expiresAt, user: toPublicUser(user) });
         return;
       } catch (error: any) {
@@ -721,7 +1035,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (pathParts[1] === "me" && method === "GET") {
-      const auth = requireAuth(req, res, data);
+      const auth = await requireAuth(req, res, data);
       if (!auth) {
         return;
       }
@@ -730,13 +1044,13 @@ const server = createServer(async (req, res) => {
     }
 
     if (pathParts[1] === "logout" && method === "POST") {
-      const auth = getAuthContext(req, data);
+      const auth = await getAuthContext(req, data);
       if (!auth) {
         sendError(res, 401, "UNAUTHORIZED", "还没有登录");
         return;
       }
       data.sessions = data.sessions.filter((session) => session.token !== auth.token);
-      writeData(data);
+      await writeData(data);
       sendJson(res, 200, { ok: true });
       return;
     }
@@ -745,10 +1059,10 @@ const server = createServer(async (req, res) => {
     return;
   }
   if (pathParts[0] === "users") {
-    const data = readData();
+    const data = await readData();
 
     if (method === "GET") {
-      const auth = requireAccountAdmin(req, res, data);
+      const auth = await requireAccountAdmin(req, res, data);
       if (!auth) {
         return;
       }
@@ -757,7 +1071,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (method === "POST") {
-      const auth = requireAccountAdmin(req, res, data);
+      const auth = await requireAccountAdmin(req, res, data);
       if (!auth) {
         return;
       }
@@ -804,7 +1118,7 @@ const server = createServer(async (req, res) => {
           profile
         };
         data.users.push(user);
-        writeData(data);
+        await writeData(data);
         sendJson(res, 201, { user: toPublicUser(user) });
         return;
       } catch (error: any) {
@@ -815,7 +1129,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (pathParts.length === 2 && method === "PATCH") {
-      const auth = requireAuth(req, res, data);
+      const auth = await requireAuth(req, res, data);
       if (!auth) {
         return;
       }
@@ -892,7 +1206,7 @@ const server = createServer(async (req, res) => {
           updated.passwordHash = hashPassword(password, salt);
         }
         data.users[targetIndex] = updated;
-        writeData(data);
+        await writeData(data);
         sendJson(res, 200, { user: toPublicUser(updated) });
         return;
       } catch (error: any) {
@@ -903,7 +1217,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (pathParts.length === 2 && method === "DELETE") {
-      const auth = requireAccountAdmin(req, res, data);
+      const auth = await requireAccountAdmin(req, res, data);
       if (!auth) {
         return;
       }
@@ -924,7 +1238,7 @@ const server = createServer(async (req, res) => {
       }
       data.users.splice(targetIndex, 1);
       data.sessions = data.sessions.filter((session) => session.userId !== target.id);
-      writeData(data);
+      await writeData(data);
       res.writeHead(204);
       res.end();
       return;
@@ -935,8 +1249,8 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathParts[0] === "import" && pathParts[1] === "events" && method === "POST") {
-    const data = readData();
-    const auth = requireContentManager(req, res, data);
+    const data = await readData();
+    const auth = await requireContentManager(req, res, data);
     if (!auth) {
       return;
     }
@@ -969,19 +1283,8 @@ const server = createServer(async (req, res) => {
           sendError(res, 400, "BAD_REQUEST", timeError, { field: "time" });
           return;
         }
-        const tagIds = Array.isArray(item.tagIds) ? item.tagIds : [];
-        const categoryIds = Array.isArray(item.categoryIds) ? item.categoryIds : [];
-
-        const missingTags = ensureTagsExist(data, tagIds);
-        if (missingTags.length > 0) {
-          sendError(res, 400, "BAD_REQUEST", "tagIds 无法识别", { field: missingTags.join(",") });
-          return;
-        }
-        const missingCategories = ensureCategoriesExist(data, categoryIds);
-        if (missingCategories.length > 0) {
-          sendError(res, 400, "BAD_REQUEST", "categoryIds 无法识别", { field: missingCategories.join(",") });
-          return;
-        }
+        const tagIds = resolveTagIds(data, item.tagIds, item.tags);
+        const categoryIds = resolveCategoryIds(data, item.categoryIds, item.categories);
 
         const event: EventItem = {
           id: createId("evt"),
@@ -998,7 +1301,7 @@ const server = createServer(async (req, res) => {
         recordVersion(data, event, "import", auth.user.id);
         created.push(event);
       }
-      writeData(data);
+      await writeData(data);
       sendJson(res, 200, { mode, imported: created.length });
       return;
     } catch (error: any) {
@@ -1009,17 +1312,20 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathParts[0] === "export" && pathParts[1] === "events" && method === "GET") {
-    const data = readData();
-    sendJson(res, 200, { exportedAt: nowIso(), total: data.events.length, items: data.events });
+    const data = await readData();
+    const tagMap = buildTagMap(data);
+    const categoryMap = buildCategoryMap(data);
+    const items = data.events.map((event) => buildEventView(event, tagMap, categoryMap));
+    sendJson(res, 200, { exportedAt: nowIso(), total: data.events.length, items });
     return;
   }
 
   if (pathParts[0] === "events") {
-    const data = readData();
+    const data = await readData();
 
     if (pathParts.length >= 2 && pathParts[1] === "approvals") {
       if (pathParts.length === 2 && method === "GET") {
-        const auth = requireContentApprover(req, res, data);
+        const auth = await requireContentApprover(req, res, data);
         if (!auth) {
           return;
         }
@@ -1039,7 +1345,7 @@ const server = createServer(async (req, res) => {
       }
 
       if (pathParts.length === 4 && method === "POST") {
-        const auth = requireContentApprover(req, res, data);
+        const auth = await requireContentApprover(req, res, data);
         if (!auth) {
           return;
         }
@@ -1066,14 +1372,20 @@ const server = createServer(async (req, res) => {
                 sendError(res, 400, "BAD_REQUEST", "审批内容缺失");
                 return;
               }
+              const tagIds = resolveTagIds(data, approval.draft.tagIds, approval.draft.tags);
+              const categoryIds = resolveCategoryIds(
+                data,
+                approval.draft.categoryIds,
+                approval.draft.categories
+              );
               const now = nowIso();
               const event: EventItem = {
                 id: createId("evt"),
                 title: approval.draft.title,
                 summary: approval.draft.summary ?? "",
                 time: approval.draft.time,
-                tagIds: approval.draft.tagIds,
-                categoryIds: approval.draft.categoryIds,
+                tagIds,
+                categoryIds,
                 createdAt: now,
                 updatedAt: now,
                 createdBy: approval.requestedBy
@@ -1091,6 +1403,12 @@ const server = createServer(async (req, res) => {
                 sendError(res, 404, "NOT_FOUND", "事件不存在");
                 return;
               }
+              const tagIds = resolveTagIds(data, approval.draft.tagIds, approval.draft.tags);
+              const categoryIds = resolveCategoryIds(
+                data,
+                approval.draft.categoryIds,
+                approval.draft.categories
+              );
               const current = data.events[eventIndex];
               recordVersion(data, current, "update", auth.user.id, `approval:${approval.id}`);
               data.events[eventIndex] = {
@@ -1098,8 +1416,8 @@ const server = createServer(async (req, res) => {
                 title: approval.draft.title,
                 summary: approval.draft.summary ?? "",
                 time: approval.draft.time,
-                tagIds: approval.draft.tagIds,
-                categoryIds: approval.draft.categoryIds,
+                tagIds,
+                categoryIds,
                 updatedAt: nowIso()
               };
             } else if (approval.action === "delete") {
@@ -1124,7 +1442,7 @@ const server = createServer(async (req, res) => {
             approval.decidedBy = auth.user.id;
             approval.decidedAt = decidedAt;
             approval.note = note || approval.note;
-            writeData(data);
+            await writeData(data);
             sendJson(res, 200, { ok: true, approval });
             return;
           }
@@ -1134,7 +1452,7 @@ const server = createServer(async (req, res) => {
             approval.decidedBy = auth.user.id;
             approval.decidedAt = decidedAt;
             approval.note = note || approval.note;
-            writeData(data);
+            await writeData(data);
             sendJson(res, 200, { ok: true, approval });
             return;
           }
@@ -1203,7 +1521,10 @@ const server = createServer(async (req, res) => {
 
       items.sort((a, b) => a.time.start.year - b.time.start.year);
 
-      sendJson(res, 200, { items, total: items.length });
+      const tagMap = buildTagMap(data);
+      const categoryMap = buildCategoryMap(data);
+      const viewItems = items.map((event) => buildEventView(event, tagMap, categoryMap));
+      sendJson(res, 200, { items: viewItems, total: items.length });
       return;
     }
 
@@ -1219,7 +1540,10 @@ const server = createServer(async (req, res) => {
         const summaryMatch = (event.summary ?? "").toLowerCase().includes(lowered);
         return titleMatch || summaryMatch;
       });
-      sendJson(res, 200, { items, total: items.length });
+      const tagMap = buildTagMap(data);
+      const categoryMap = buildCategoryMap(data);
+      const viewItems = items.map((event) => buildEventView(event, tagMap, categoryMap));
+      sendJson(res, 200, { items: viewItems, total: items.length });
       return;
     }
 
@@ -1250,7 +1574,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (pathParts.length === 1 && method === "POST") {
-      const auth = requireContentWriter(req, res, data);
+      const auth = await requireContentWriter(req, res, data);
       if (!auth) {
         return;
       }
@@ -1272,26 +1596,21 @@ const server = createServer(async (req, res) => {
           return;
         }
 
-        const tagIds = Array.isArray(payload.tagIds) ? payload.tagIds : [];
-        const categoryIds = Array.isArray(payload.categoryIds) ? payload.categoryIds : [];
-
-        const missingTags = ensureTagsExist(data, tagIds);
-        if (missingTags.length > 0) {
-          sendError(res, 400, "BAD_REQUEST", "tagIds 无法识别", { field: missingTags.join(",") });
-          return;
-        }
-        const missingCategories = ensureCategoriesExist(data, categoryIds);
-        if (missingCategories.length > 0) {
-          sendError(res, 400, "BAD_REQUEST", "categoryIds 无法识别", { field: missingCategories.join(",") });
-          return;
-        }
+        const tagInputs = normalizeInputList(
+          payload.tagIds,
+          collectIncomingNames(payload.tags).names
+        );
+        const categoryInputs = normalizeInputList(
+          payload.categoryIds,
+          collectIncomingNames(payload.categories).names
+        );
 
         const draft: EventDraft = {
           title: payload.title.trim(),
           summary: typeof payload.summary === "string" ? payload.summary.trim() : "",
           time,
-          tagIds,
-          categoryIds
+          tagIds: tagInputs,
+          categoryIds: categoryInputs
         };
 
         if (isContentEditor(auth.user.role)) {
@@ -1299,33 +1618,37 @@ const server = createServer(async (req, res) => {
             draft,
             requestedBy: auth.user.id
           });
-          writeData(data);
+          await writeData(data);
           sendJson(res, 202, { pending: true, approvalId: approval.id });
           return;
         }
 
+        const tagIds = resolveTagIds(data, tagInputs, payload.tags);
+        const categoryIds = resolveCategoryIds(data, categoryInputs, payload.categories);
         const now = nowIso();
         const event: EventItem = {
           id: createId("evt"),
           title: draft.title,
           summary: draft.summary ?? "",
           time: draft.time,
-          tagIds: draft.tagIds,
-          categoryIds: draft.categoryIds,
+          tagIds,
+          categoryIds,
           createdAt: now,
           updatedAt: now,
           createdBy: auth.user.id
         };
 
-        data.events.push(event);
-        recordVersion(data, event, "create", auth.user.id);
-        writeData(data);
-        sendJson(res, 201, event);
-        return;
-      } catch (error: any) {
-        const message = error?.message === "PAYLOAD_TOO_LARGE" ? "请求体太大" : "请求参数错误";
-        sendError(res, 400, "BAD_REQUEST", message);
-        return;
+          data.events.push(event);
+          recordVersion(data, event, "create", auth.user.id);
+          await writeData(data);
+          const tagMap = buildTagMap(data);
+          const categoryMap = buildCategoryMap(data);
+          sendJson(res, 201, buildEventView(event, tagMap, categoryMap));
+          return;
+        } catch (error: any) {
+          const message = error?.message === "PAYLOAD_TOO_LARGE" ? "请求体太大" : "请求参数错误";
+          sendError(res, 400, "BAD_REQUEST", message);
+          return;
       }
     }
     if (pathParts.length === 3 && pathParts[2] === "versions" && method === "GET") {
@@ -1336,7 +1659,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (pathParts.length === 3 && pathParts[2] === "restore" && method === "POST") {
-      const auth = requireContentManager(req, res, data);
+      const auth = await requireContentManager(req, res, data);
       if (!auth) {
         return;
       }
@@ -1365,8 +1688,10 @@ const server = createServer(async (req, res) => {
           data.events.push(restored);
         }
         recordVersion(data, restored, "restore", auth.user.id, `restore:${version.id}`);
-        writeData(data);
-        sendJson(res, 200, restored);
+        await writeData(data);
+        const tagMap = buildTagMap(data);
+        const categoryMap = buildCategoryMap(data);
+        sendJson(res, 200, buildEventView(restored, tagMap, categoryMap));
         return;
       } catch (error: any) {
         const message = error?.message === "BAD_JSON" ? "请求体不是合法 JSON" : "请求参数错误";
@@ -1384,12 +1709,14 @@ const server = createServer(async (req, res) => {
           sendError(res, 404, "NOT_FOUND", "事件不存在");
           return;
         }
-        sendJson(res, 200, data.events[eventIndex]);
+        const tagMap = buildTagMap(data);
+        const categoryMap = buildCategoryMap(data);
+        sendJson(res, 200, buildEventView(data.events[eventIndex], tagMap, categoryMap));
         return;
       }
 
       if (method === "PATCH") {
-        const auth = requireContentWriter(req, res, data);
+        const auth = await requireContentWriter(req, res, data);
         if (!auth) {
           return;
         }
@@ -1400,12 +1727,26 @@ const server = createServer(async (req, res) => {
         try {
           const payload = await readJsonBody(req);
           const current = data.events[eventIndex];
+          const tagInputs =
+            payload.tagIds !== undefined
+              ? normalizeInputList(payload.tagIds, collectIncomingNames(payload.tags).names)
+              : current.tagIds;
+          const categoryInputs =
+            payload.categoryIds !== undefined
+              ? normalizeInputList(payload.categoryIds, collectIncomingNames(payload.categories).names)
+              : current.categoryIds;
+          const tagIds = isContentEditor(auth.user.role)
+            ? tagInputs
+            : resolveTagIds(data, tagInputs, payload.tags);
+          const categoryIds = isContentEditor(auth.user.role)
+            ? categoryInputs
+            : resolveCategoryIds(data, categoryInputs, payload.categories);
           const updated: EventItem = {
             ...current,
             title: payload.title !== undefined ? payload.title : current.title,
             summary: payload.summary !== undefined ? payload.summary : current.summary,
-            tagIds: Array.isArray(payload.tagIds) ? payload.tagIds : current.tagIds,
-            categoryIds: Array.isArray(payload.categoryIds) ? payload.categoryIds : current.categoryIds,
+            tagIds,
+            categoryIds,
             time: payload.time ? mergeEventTime(current.time, payload.time) : current.time,
             updatedAt: nowIso()
           };
@@ -1421,26 +1762,12 @@ const server = createServer(async (req, res) => {
             return;
           }
 
-          const missingTags = ensureTagsExist(data, updated.tagIds);
-          if (missingTags.length > 0) {
-            sendError(res, 400, "BAD_REQUEST", "tagIds 无法识别", { field: missingTags.join(",") });
-            return;
-          }
-
-          const missingCategories = ensureCategoriesExist(data, updated.categoryIds);
-          if (missingCategories.length > 0) {
-            sendError(res, 400, "BAD_REQUEST", "categoryIds 无法识别", {
-              field: missingCategories.join(",")
-            });
-            return;
-          }
-
           const draft: EventDraft = {
             title: updated.title.trim(),
             summary: updated.summary ? updated.summary.trim() : "",
             time: updated.time,
-            tagIds: updated.tagIds,
-            categoryIds: updated.categoryIds
+            tagIds,
+            categoryIds
           };
 
           if (isContentEditor(auth.user.role)) {
@@ -1450,7 +1777,7 @@ const server = createServer(async (req, res) => {
               snapshot: current,
               requestedBy: auth.user.id
             });
-            writeData(data);
+            await writeData(data);
             sendJson(res, 202, { pending: true, approvalId: approval.id });
             return;
           }
@@ -1461,8 +1788,10 @@ const server = createServer(async (req, res) => {
             title: draft.title,
             summary: draft.summary ?? ""
           };
-          writeData(data);
-          sendJson(res, 200, data.events[eventIndex]);
+          await writeData(data);
+          const tagMap = buildTagMap(data);
+          const categoryMap = buildCategoryMap(data);
+          sendJson(res, 200, buildEventView(data.events[eventIndex], tagMap, categoryMap));
           return;
         } catch (error: any) {
           sendError(res, 400, "BAD_REQUEST", "请求参数错误");
@@ -1471,7 +1800,7 @@ const server = createServer(async (req, res) => {
       }
 
       if (method === "DELETE") {
-        const auth = requireContentWriter(req, res, data);
+        const auth = await requireContentWriter(req, res, data);
         if (!auth) {
           return;
         }
@@ -1486,13 +1815,13 @@ const server = createServer(async (req, res) => {
             snapshot: current,
             requestedBy: auth.user.id
           });
-          writeData(data);
+          await writeData(data);
           sendJson(res, 202, { pending: true, approvalId: approval.id });
           return;
         }
         recordVersion(data, current, "delete", auth.user.id);
         data.events.splice(eventIndex, 1);
-        writeData(data);
+        await writeData(data);
         res.writeHead(204);
         res.end();
         return;
@@ -1504,7 +1833,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathParts[0] === "tags") {
-    const data = readData();
+    const data = await readData();
 
     if (method === "GET") {
       sendJson(res, 200, { items: data.tags });
@@ -1512,7 +1841,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (method === "POST") {
-      const auth = requireContentManager(req, res, data);
+      const auth = await requireContentManager(req, res, data);
       if (!auth) {
         return;
       }
@@ -1528,7 +1857,7 @@ const server = createServer(async (req, res) => {
           parentId: payload.parentId ?? null
         };
         data.tags.push(tag);
-        writeData(data);
+        await writeData(data);
         sendJson(res, 201, tag);
         return;
       } catch (error: any) {
@@ -1538,7 +1867,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (pathParts.length === 2 && method === "PATCH") {
-      const auth = requireContentManager(req, res, data);
+      const auth = await requireContentManager(req, res, data);
       if (!auth) {
         return;
       }
@@ -1560,7 +1889,7 @@ const server = createServer(async (req, res) => {
           return;
         }
         data.tags[tagIndex] = { ...updated, name: updated.name.trim() };
-        writeData(data);
+        await writeData(data);
         sendJson(res, 200, data.tags[tagIndex]);
         return;
       } catch (error: any) {
@@ -1570,7 +1899,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (pathParts.length === 2 && method === "DELETE") {
-      const auth = requireContentManager(req, res, data);
+      const auth = await requireContentManager(req, res, data);
       if (!auth) {
         return;
       }
@@ -1587,7 +1916,7 @@ const server = createServer(async (req, res) => {
         }
         return { ...event, tagIds: event.tagIds.filter((id) => id !== tagId), updatedAt: nowIso() };
       });
-      writeData(data);
+      await writeData(data);
       res.writeHead(204);
       res.end();
       return;
@@ -1598,7 +1927,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathParts[0] === "categories") {
-    const data = readData();
+    const data = await readData();
 
     if (method === "GET") {
       sendJson(res, 200, { items: data.categories });
@@ -1606,7 +1935,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (method === "POST") {
-      const auth = requireContentManager(req, res, data);
+      const auth = await requireContentManager(req, res, data);
       if (!auth) {
         return;
       }
@@ -1622,7 +1951,7 @@ const server = createServer(async (req, res) => {
           parentId: payload.parentId ?? null
         };
         data.categories.push(category);
-        writeData(data);
+        await writeData(data);
         sendJson(res, 201, category);
         return;
       } catch (error: any) {
@@ -1632,7 +1961,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (pathParts.length === 2 && method === "PATCH") {
-      const auth = requireContentManager(req, res, data);
+      const auth = await requireContentManager(req, res, data);
       if (!auth) {
         return;
       }
@@ -1654,7 +1983,7 @@ const server = createServer(async (req, res) => {
           return;
         }
         data.categories[categoryIndex] = { ...updated, name: updated.name.trim() };
-        writeData(data);
+        await writeData(data);
         sendJson(res, 200, data.categories[categoryIndex]);
         return;
       } catch (error: any) {
@@ -1664,7 +1993,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (pathParts.length === 2 && method === "DELETE") {
-      const auth = requireContentManager(req, res, data);
+      const auth = await requireContentManager(req, res, data);
       if (!auth) {
         return;
       }
@@ -1685,7 +2014,7 @@ const server = createServer(async (req, res) => {
           updatedAt: nowIso()
         };
       });
-      writeData(data);
+      await writeData(data);
       res.writeHead(204);
       res.end();
       return;
@@ -1698,6 +2027,17 @@ const server = createServer(async (req, res) => {
   sendError(res, 404, "NOT_FOUND", "接口不存在");
 });
 
-server.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
-});
+ensureDatabaseReady()
+  .then(() => {
+    server.listen(port, () => {
+      console.log(`Server is running on http://localhost:${port}`);
+    });
+  })
+  .catch((error) => {
+    console.error("数据库初始化失败：", error);
+    process.exit(1);
+  });
+
+
+
+

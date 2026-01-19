@@ -1,4 +1,4 @@
-﻿# ChronoAtlas 时序史鉴
+# ChronoAtlas 时序史鉴
 
 ChronoAtlas 是一个以时间线为核心的历史事件管理与展示应用，支持浏览、筛选、管理与导入导出。
 
@@ -10,6 +10,10 @@ ChronoAtlas 是一个以时间线为核心的历史事件管理与展示应用�
 - 事件版本记录与恢复
 - JSON 数据导入与导出（导入支持自动创建标签）
 - 基础统计概览
+- 速率限制保护
+- SMTP 设置管理
+- 审批流程
+- 混合存储模式（PostgreSQL + JSON）
 
 ## 本地运行
 
@@ -29,7 +33,15 @@ ChronoAtlas 是一个以时间线为核心的历史事件管理与展示应用�
 - `APP_URL`：前端访问地址（邮件链接使用）
 - `JWT_SECRET`：访问 token 密钥
 - `JWT_REFRESH_SECRET`：刷新 token 密钥
+- `JWT_EXPIRES_IN`：访问 token 有效期（默认 15m）
+- `JWT_REFRESH_EXPIRES_IN`：刷新 token 有效期（默认 7d）
 - `PG_HOST/PG_PORT/PG_USER/PG_PASSWORD/PG_DATABASE`：数据库连接
+- `PG_SSL`：是否启用 PostgreSQL SSL（默认 false）
+- `PG_SCHEMA`：数据库 schema（默认 public）
+- `RATE_LIMIT_TTL`：速率限制时间窗口（秒，默认 60）
+- `RATE_LIMIT_LIMIT`：速率限制请求数（默认 30）
+- `EMAIL_VERIFY_TTL_MINUTES`：邮箱验证链接有效期（分钟，默认 1440）
+- `PASSWORD_RESET_TTL_MINUTES`：密码重置链接有效期（分钟，默认 30）
 - SMTP 配置：在系统设置页面填写（超级管理员可见）
 - `MAIL_DEV_OUTPUT`：开发环境邮件输出（log/file/off）
 - `MAIL_DEV_DIR`：开发环境邮件输出目录

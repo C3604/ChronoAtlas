@@ -1,4 +1,4 @@
-﻿---
+---
 title: 技术栈（当前与目标）
 category: engineering
 status: current
@@ -14,6 +14,7 @@ last_updated: 2026-01-19
 
 - 前端：Vue 3 + TypeScript + Vite（packages/web）。
 - 后端：NestJS + TypeScript（packages/server），鉴权使用 Passport + JWT。
+- 速率限制：@nestjs/throttler，提供 API 请求速率限制保护。
 - 邮件：@nestjs-modules/mailer + nodemailer，SMTP 配置由超级管理员在后台设置。
 - 存储：事件相关仍是 JSON 文件（packages/server/data/db.json）；用户与鉴权、SMTP 配置使用 PostgreSQL。
 

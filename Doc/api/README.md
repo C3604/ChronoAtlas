@@ -1,9 +1,9 @@
-﻿---
+---
 title: API 总说明
 category: api
 status: current
 version: v0.1
-last_updated: 2026-01-18
+last_updated: 2026-01-19
 related:
   - ./v0.1/contract.md
   - ./v0.1/openapi.yaml

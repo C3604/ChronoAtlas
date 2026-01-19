@@ -1,9 +1,9 @@
-﻿---
+---
 title: 架构概览
 category: architecture
 status: current
 version: v0.1
-last_updated: 2026-01-18
+last_updated: 2026-01-19
 ---
 
 # 架构概览
@@ -13,8 +13,11 @@ last_updated: 2026-01-18
 ## 1. 模块
 
 - 前端：页面与交互，目录 packages/web。
-- 后端：NestJS 模块化服务（Auth/Users/Mail/Legacy），目录 packages/server。
-- 数据存储：事件相关使用 JSON（packages/server/data/db.json），鉴权使用 PostgreSQL。
+- 后端：NestJS 模块化服务（Auth/Users/Mail/Legacy/Settings），目录 packages/server。
+- 数据存储：
+  - 事件相关：JSON 文件（packages/server/data/db.json）
+  - 用户与鉴权：PostgreSQL
+  - SMTP 设置：PostgreSQL
 - 文档：Doc/。
 
 ## 2. 当前范围
@@ -32,6 +35,7 @@ last_updated: 2026-01-18
 - 编辑：后台表单 -> POST/PATCH /events -> 校验 -> 写入 JSON -> 返回结果。
 - 审批：EDITOR 写入 -> 返回 202 -> ADMIN/SUPER_ADMIN 审批。
 - 导入：后台 -> POST /import/events -> 批量写入。
+- SMTP 设置：超级管理员 -> GET /settings/smtp -> 返回设置 -> 编辑 -> PUT /settings/smtp -> 写入 PostgreSQL -> 返回结果。
 
 ## 4. 关键约定
 

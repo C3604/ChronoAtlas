@@ -244,13 +244,15 @@ onMounted(async () => {
 .header {
   padding: 0 24px;
   background: var(--color-bg-surface);
+  background-image: var(--gradient-mist);
   border-bottom: 1px solid var(--color-border);
   position: sticky;
   top: 0;
   z-index: 100;
   height: 64px;
-  transition: background 0.3s, border-color 0.3s;
-  opacity: 0.95;
+  transition: background 0.3s, border-color 0.3s, box-shadow 0.3s;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
 }
 
 .header-content {

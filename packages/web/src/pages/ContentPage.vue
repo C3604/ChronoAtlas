@@ -98,7 +98,6 @@
               <template v-if="column.key === 'tags'">
                 <a-space size="small" wrap>
                   <a-tag v-for="tag in getEventTagLabels(record)" :key="tag" color="blue">{{ tag }}</a-tag>
-                  <a-tag v-for="cat in mapCategories(record.categoryIds)" :key="cat" color="cyan">{{ cat }}</a-tag>
                 </a-space>
               </template>
               <template v-if="column.key === 'action'">
@@ -152,13 +151,12 @@
         </a-tab-pane>
 
         <!-- Taxonomy Tab -->
-        <a-tab-pane v-if="canManageContent" key="taxonomy" tab="标签与分类">
+        <a-tab-pane v-if="canManageContent" key="taxonomy" tab="标签管理">
           <div v-if="!canManageContent">
             <a-alert message="当前账号没有内容管理权限" type="warning" />
           </div>
           <a-row v-else :gutter="24">
-            <!-- Tags Column -->
-            <a-col :span="12">
+            <a-col :span="24">
               <a-card title="标签管理" :bordered="false">
                 <a-input-group compact style="margin-bottom: 16px; display: flex;">
                   <a-input v-model:value="tagForm.name" placeholder="新标签名称" style="flex: 1" @pressEnter="createTagItem" />
@@ -178,35 +176,6 @@
                          <a-input v-model:value="tagEdit.name" size="small" />
                          <a-button type="primary" size="small" @click="saveTagEdit">保存</a-button>
                          <a-button size="small" @click="cancelTagEdit">取消</a-button>
-                      </div>
-                      <span v-else>{{ item.name }}</span>
-                    </a-list-item>
-                  </template>
-                </a-list>
-              </a-card>
-            </a-col>
-
-            <!-- Categories Column -->
-            <a-col :span="12">
-              <a-card title="分类管理" :bordered="false">
-                <a-input-group compact style="margin-bottom: 16px; display: flex;">
-                  <a-input v-model:value="categoryForm.name" placeholder="新分类名称" style="flex: 1" @pressEnter="createCategoryItem" />
-                  <a-button type="primary" @click="createCategoryItem">新增</a-button>
-                </a-input-group>
-
-                <a-list bordered :data-source="categories">
-                  <template #renderItem="{ item }">
-                    <a-list-item>
-                      <template #actions>
-                        <a-button type="link" size="small" @click="startEditCategory(item)">编辑</a-button>
-                        <a-popconfirm title="确定要删除该分类吗？" @confirm="deleteCategoryItem(item.id)">
-                          <a-button type="link" danger size="small">删除</a-button>
-                        </a-popconfirm>
-                      </template>
-                      <div v-if="categoryEdit.id === item.id" style="display: flex; gap: 8px; width: 100%;">
-                         <a-input v-model:value="categoryEdit.name" size="small" />
-                         <a-button type="primary" size="small" @click="saveCategoryEdit">保存</a-button>
-                         <a-button size="small" @click="cancelCategoryEdit">取消</a-button>
                       </div>
                       <span v-else>{{ item.name }}</span>
                     </a-list-item>
@@ -291,21 +260,9 @@
             </a-row>
 
             <a-row :gutter="16">
-              <a-col :span="12">
+              <a-col :span="24">
                 <a-card title="标签分布">
                    <a-list size="small" :data-source="stats.tags">
-                      <template #renderItem="{ item }">
-                        <a-list-item>
-                          <span>{{ item.name }}</span>
-                          <span>{{ item.count }}</span>
-                        </a-list-item>
-                      </template>
-                   </a-list>
-                </a-card>
-              </a-col>
-              <a-col :span="12">
-                <a-card title="分类分布">
-                   <a-list size="small" :data-source="stats.categories">
                       <template #renderItem="{ item }">
                         <a-list-item>
                           <span>{{ item.name }}</span>
@@ -565,26 +522,15 @@
            </a-col>
         </a-row>
 
-        <a-divider orientation="left">分类与标签</a-divider>
+        <a-divider orientation="left">标签</a-divider>
         <a-row :gutter="16">
-          <a-col :span="12">
+          <a-col :span="24">
             <a-form-item label="标签">
               <a-select
                 v-model:value="eventForm.tagIds"
                 mode="tags"
                 placeholder="选择或输入标签"
                 :options="tags.map(t => ({ value: t.id, label: t.name }))"
-                :tokenSeparators="[',', '，', ' ']"
-              />
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
-            <a-form-item label="分类">
-              <a-select
-                v-model:value="eventForm.categoryIds"
-                mode="tags"
-                placeholder="选择或输入分类"
-                :options="categories.map(c => ({ value: c.id, label: c.name }))"
                 :tokenSeparators="[',', '，', ' ']"
               />
             </a-form-item>
@@ -642,7 +588,6 @@ import { PlusOutlined } from '@ant-design/icons-vue';
 const {
   user,
   tags,
-  categories,
   events,
   versions,
   stats,
@@ -650,7 +595,6 @@ const {
   users,
   smtpSettings,
   loadTags,
-  loadCategories,
   loadEvents,
   createEvent,
   updateEvent,
@@ -663,9 +607,6 @@ const {
   createTag,
   updateTag,
   deleteTag,
-  createCategory,
-  updateCategory,
-  deleteCategory,
   exportEvents,
   importEvents,
   loadStats,
@@ -683,7 +624,6 @@ const {
   formatDateTime,
   formatRole,
   mapTags,
-  mapCategories,
   approvalActionLabel,
   approvalTitle,
   loadSmtpSettings,
@@ -749,14 +689,11 @@ const eventForm = reactive({
   isApprox: false,
   approxRangeYears: "" as string | number,
   fuzzyText: "",
-  tagIds: [] as string[],
-  categoryIds: [] as string[]
+  tagIds: [] as string[]
 });
 
 const tagForm = reactive({ name: "" });
 const tagEdit = reactive({ id: "", name: "" });
-const categoryForm = reactive({ name: "" });
-const categoryEdit = reactive({ id: "", name: "" });
 
 const exportNotice = ref("");
 const exportError = ref("");
@@ -813,7 +750,7 @@ const eventColumns = [
   { title: '标题', dataIndex: 'title', key: 'title', width: 200 },
   { title: '时间', key: 'time', width: 150 },
   { title: '精度', key: 'precision', width: 100 },
-  { title: '标签/分类', key: 'tags' },
+  { title: '标签', key: 'tags' },
   { title: '操作', key: 'action', width: 150 },
 ];
 
@@ -860,7 +797,6 @@ const resetEventForm = () => {
   eventForm.approxRangeYears = "";
   eventForm.fuzzyText = "";
   eventForm.tagIds = [];
-  eventForm.categoryIds = [];
   formError.value = "";
   formNotice.value = "";
 };
@@ -959,8 +895,7 @@ const submitEvent = async () => {
     title: eventForm.title.trim(),
     summary: eventForm.summary.trim(),
     time,
-    tagIds: eventForm.tagIds,
-    categoryIds: eventForm.categoryIds
+    tagIds: eventForm.tagIds
   };
 
   loading.value = true;
@@ -1001,7 +936,6 @@ const beginEdit = (event: EventItem) => {
   eventForm.approxRangeYears = event.time.fuzzy?.approxRangeYears ?? "";
   eventForm.fuzzyText = event.time.fuzzy?.displayText ?? "";
   eventForm.tagIds = [...event.tagIds];
-  eventForm.categoryIds = [...event.categoryIds];
   eventModalVisible.value = true;
 };
 
@@ -1038,7 +972,7 @@ const restoreEventVersion = async (eventId: string, versionId: string) => {
 
 const refreshEvents = async () => {
   loading.value = true;
-  await Promise.all([loadEvents(), loadTags(), loadCategories()]);
+  await Promise.all([loadEvents(), loadTags()]);
   await refreshApprovals();
   loading.value = false;
 };
@@ -1107,42 +1041,6 @@ const cancelTagEdit = () => {
 const deleteTagItem = async (id: string) => {
   await deleteTag(id);
   await loadTags();
-  await loadEvents();
-  await loadStats();
-};
-
-const createCategoryItem = async () => {
-  if (!categoryForm.name.trim()) {
-    return;
-  }
-  await createCategory({ name: categoryForm.name.trim() });
-  categoryForm.name = "";
-  await loadCategories();
-};
-
-const startEditCategory = (cat: { id: string; name: string }) => {
-  categoryEdit.id = cat.id;
-  categoryEdit.name = cat.name;
-};
-
-const saveCategoryEdit = async () => {
-  if (!categoryEdit.id || !categoryEdit.name.trim()) {
-    return;
-  }
-  await updateCategory(categoryEdit.id, { name: categoryEdit.name.trim() });
-  categoryEdit.id = "";
-  categoryEdit.name = "";
-  await loadCategories();
-};
-
-const cancelCategoryEdit = () => {
-  categoryEdit.id = "";
-  categoryEdit.name = "";
-};
-
-const deleteCategoryItem = async (id: string) => {
-  await deleteCategory(id);
-  await loadCategories();
   await loadEvents();
   await loadStats();
 };
@@ -1358,7 +1256,7 @@ const refreshAll = async () => {
   if (!user.value) {
     return;
   }
-  await Promise.all([loadTags(), loadCategories(), refreshEvents(), loadStats()]);
+  await Promise.all([loadTags(), refreshEvents(), loadStats()]);
   await refreshUsers();
   await refreshSmtpSettings();
 };
@@ -1388,7 +1286,7 @@ watch(tab, async (value) => {
     await refreshEvents();
   }
   if (value === "taxonomy") {
-    await Promise.all([loadTags(), loadCategories()]);
+    await loadTags();
   }
   if (value === "stats") {
     await loadStats();

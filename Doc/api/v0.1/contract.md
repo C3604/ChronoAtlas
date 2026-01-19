@@ -12,7 +12,7 @@ last_updated: 2026-01-19
 
 ## 1. 范围
 
-- 包含：注册/登录/刷新、邮箱验证、忘记/重置密码、用户管理、事件、标签、分类、版本记录、导入导出、统计概览、事件审批、系统设置（SMTP）。
+- 包含：注册/登录/刷新、邮箱验证、忘记/重置密码、用户管理、事件、标签、版本记录、导入导出、统计概览、事件审批、系统设置（SMTP）。
 - 暂不包含：人物、地点、地图、全文检索。
 
 ## 2. 通用约定
@@ -100,7 +100,7 @@ last_updated: 2026-01-19
 | --- | --- | --- | --- | --- |
 | 用户管理 | ✅（含超级管理员） | ✅（不含超级管理员） | ❌ | ❌ |
 | 系统设置（SMTP） | ✅ | ❌ | ❌ | ❌ |
-| 内容管理（标签/分类/导入/恢复） | ✅ | ✅ | ❌ | ❌ |
+| 内容管理（标签/导入/恢复） | ✅ | ✅ | ❌ | ❌ |
 | 内容审批 | ✅ | ✅ | ❌ | ❌ |
 | 内容写入（事件增删改） | ✅ | ✅ | ✅（需审批） | ❌ |
 | 内容浏览 | ✅ | ✅ | ✅ | ✅ |
@@ -132,13 +132,11 @@ last_updated: 2026-01-19
 - time（必填）
 - tagIds[]（可选，可传 id 或名称）
 - tags[]（只读，标签详情数组，包含 id/name/parentId）
-- categoryIds[]（可选，可传 id 或名称）
-- categories[]（只读，分类详情数组，包含 id/name/parentId）
 - createdAt / updatedAt
 
-说明：创建/更新/导入时，tagIds/categoryIds 可填写名称，系统会自动匹配或创建。
+说明：创建/更新/导入时，tagIds 可填写名称，系统会自动匹配或创建。
 
-### 7.4 Tag / Category
+### 7.4 Tag
 
 - id
 - name（必填、非空）
@@ -259,8 +257,10 @@ last_updated: 2026-01-19
 ### 8.5 事件
 
 - GET /events：列表
-  - 查询：timeFrom/timeTo/tagIds/categoryIds/keyword
+- 查询：timeFrom/timeTo/tagIds/keyword
   - 兼容：keyword 也可用 q 作为别名
+  - tagIds 支持单个或多个标签
+  - tagMatch=any|all：any 表示任意匹配，all 表示全部匹配（默认 all）
   - 响应：`{ items: Event[], total }`
 - POST /events：创建（需要内容写入权限）
   - 成功：201 返回 Event
@@ -282,7 +282,7 @@ last_updated: 2026-01-19
   - 请求：`{ versionId }`
   - 响应：Event
 
-### 8.6 标签与分类
+### 8.6 标签
 
 - GET /tags：标签列表
   - 响应：`{ items: Tag[] }`
@@ -293,20 +293,14 @@ last_updated: 2026-01-19
 - DELETE /tags/{id}：删除标签（需要内容管理权限）
   - 响应：`{ ok: true }`
 
-- GET /categories：分类列表
-  - 响应：`{ items: Category[] }`
-- POST /categories：创建分类（需要内容管理权限）
-  - 响应：Category
-- PATCH /categories/{id}：修改分类（需要内容管理权限）
-  - 响应：Category
-- DELETE /categories/{id}：删除分类（需要内容管理权限）
+（已合并分类概念，统一使用标签接口）
   - 响应：`{ ok: true }`
 
 ### 8.7 导入导出
 
 - POST /import/events：导入事件（需要内容管理权限）
   - 请求：`{ mode: "merge"|"replace", items: Event[] }`
-  - 说明：items 中的 tagIds/categoryIds 可填写名称，系统会自动匹配或创建
+- 说明：items 中的 tagIds 可填写名称，系统会自动匹配或创建
   - 响应：`{ mode, imported }`
 - GET /export/events：导出事件
   - 响应：`{ exportedAt, total, items }`

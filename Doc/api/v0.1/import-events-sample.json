@@ -8,8 +8,7 @@
         "start": { "year": 1949, "month": 10, "day": 1 },
         "precision": "day"
       },
-      "tagIds": ["制度"],
-      "categoryIds": ["中国史"]
+      "tagIds": ["制度"]
     },
     {
       "title": "第一届现代奥运会",
@@ -17,8 +16,7 @@
         "start": { "year": 1896, "month": 4 },
         "precision": "month"
       },
-      "tagIds": ["文化"],
-      "categoryIds": ["世界史"]
+      "tagIds": ["文化"]
     },
     {
       "title": "工业革命",
@@ -33,8 +31,7 @@
           "displayText": "约1760-1840年"
         }
       },
-      "tagIds": ["技术"],
-      "categoryIds": ["世界史"]
+      "tagIds": ["技术"]
     }
   ]
 }

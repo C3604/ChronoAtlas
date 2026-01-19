@@ -110,7 +110,7 @@ type EventItem = {
   summary?: string;
   time: EventTime;
   tagIds: string[];
-  categoryIds: string[];
+  categoryIds?: string[];
   createdAt: string;
   updatedAt: string;
   createdBy?: string;
@@ -122,11 +122,7 @@ type TagItem = {
   parentId?: string | null;
 };
 
-type CategoryItem = {
-  id: string;
-  name: string;
-  parentId?: string | null;
-};
+type CategoryItem = TagItem;
 
 type UserRole = RoleName;
 
@@ -171,7 +167,7 @@ type EventDraft = {
   summary?: string;
   time: EventTime;
   tagIds: string[];
-  categoryIds: string[];
+  categoryIds?: string[];
   tags?: TagItem[];
   categories?: CategoryItem[];
 };
@@ -240,11 +236,7 @@ const buildSeedData = (): Database => {
       { id: "tag_4", name: "文化" },
       { id: "tag_5", name: "改革" }
     ],
-    categories: [
-      { id: "cat_1", name: "中国史" },
-      { id: "cat_2", name: "世界史" },
-      { id: "cat_3", name: "科技史" }
-    ],
+    categories: [],
     users: [buildDefaultAdmin()],
     sessions: [],
     eventVersions: [],
@@ -301,10 +293,14 @@ const normalizeDatabase = (parsed: Partial<Database>): NormalizeResult => {
     return user;
   });
 
+  const rawEvents = Array.isArray(parsed.events) ? parsed.events : [];
+  const rawTags = Array.isArray(parsed.tags) ? parsed.tags : [];
+  const rawCategories = Array.isArray(parsed.categories) ? parsed.categories : [];
+
   const normalized: Database = {
-    events: Array.isArray(parsed.events) ? parsed.events : [],
-    tags: Array.isArray(parsed.tags) ? parsed.tags : [],
-    categories: Array.isArray(parsed.categories) ? parsed.categories : [],
+    events: rawEvents,
+    tags: rawTags,
+    categories: [],
     users: normalizedUsersWithRoles,
     sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
     eventVersions: Array.isArray(parsed.eventVersions) ? parsed.eventVersions : [],
@@ -331,6 +327,136 @@ const normalizeDatabase = (parsed: Partial<Database>): NormalizeResult => {
   }
   if (!Array.isArray(parsed.eventApprovals)) {
     changed = true;
+  }
+
+  const hasLegacyCategoryIds =
+    rawEvents.some((event) => Array.isArray((event as any).categoryIds) && (event as any).categoryIds.length > 0) ||
+    normalized.eventVersions.some(
+      (version) =>
+        Array.isArray((version.snapshot as any)?.categoryIds) &&
+        (version.snapshot as any).categoryIds.length > 0
+    ) ||
+    normalized.eventApprovals.some(
+      (approval) =>
+        (Array.isArray((approval.draft as any)?.categoryIds) &&
+          (approval.draft as any).categoryIds.length > 0) ||
+        (Array.isArray((approval.snapshot as any)?.categoryIds) &&
+          (approval.snapshot as any).categoryIds.length > 0)
+    );
+
+  if (rawCategories.length > 0 || hasLegacyCategoryIds) {
+    const tagByName = new Map<string, TagItem>();
+    const tagById = new Map<string, TagItem>();
+    normalized.tags.forEach((tag) => {
+      tagByName.set(normalizeNameKey(tag.name), tag);
+      tagById.set(tag.id, tag);
+    });
+
+    const createMergedTagId = () => {
+      return `tag_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    };
+
+    const categoryIdMap = new Map<string, string>();
+    rawCategories.forEach((category) => {
+      const rawName = typeof category?.name === "string" ? category.name.trim() : "";
+      const name = rawName || category?.id || "未命名标签";
+      const key = normalizeNameKey(name);
+      if (!key) {
+        return;
+      }
+      let tag = tagByName.get(key);
+      if (!tag) {
+        let nextId = typeof category?.id === "string" && category.id.trim()
+          ? category.id.trim()
+          : createMergedTagId();
+        if (tagById.has(nextId)) {
+          nextId = createMergedTagId();
+        }
+        tag = {
+          id: nextId,
+          name,
+          parentId: category?.parentId ?? null
+        };
+        normalized.tags.push(tag);
+        tagByName.set(key, tag);
+        tagById.set(tag.id, tag);
+      }
+      if (typeof category?.id === "string" && category.id.trim()) {
+        categoryIdMap.set(category.id, tag.id);
+      }
+    });
+    changed = true;
+
+    const mergeTagIds = (tagIds: any, categoryIds: any) => {
+      const result: string[] = [];
+      const seen = new Set<string>();
+      const inputTags = Array.isArray(tagIds) ? tagIds : [];
+      const inputCategories = Array.isArray(categoryIds) ? categoryIds : [];
+      inputTags.forEach((id) => {
+        if (typeof id !== "string") {
+          return;
+        }
+        const trimmed = id.trim();
+        if (!trimmed || seen.has(trimmed)) {
+          return;
+        }
+        seen.add(trimmed);
+        result.push(trimmed);
+      });
+      inputCategories.forEach((id) => {
+        if (typeof id !== "string") {
+          return;
+        }
+        const trimmed = id.trim();
+        if (!trimmed) {
+          return;
+        }
+        const mapped = categoryIdMap.get(trimmed) ?? trimmed;
+        if (seen.has(mapped)) {
+          return;
+        }
+        seen.add(mapped);
+        result.push(mapped);
+      });
+      return result;
+    };
+
+    normalized.events = normalized.events.map((event) => {
+      const mergedTagIds = mergeTagIds(event.tagIds, event.categoryIds);
+      if ((event.categoryIds ?? []).length > 0) {
+        changed = true;
+      }
+      return { ...event, tagIds: mergedTagIds, categoryIds: [] };
+    });
+
+    normalized.eventVersions = normalized.eventVersions.map((version) => {
+      const snapshot = version.snapshot
+        ? {
+            ...version.snapshot,
+            tagIds: mergeTagIds(version.snapshot.tagIds, version.snapshot.categoryIds),
+            categoryIds: []
+          }
+        : version.snapshot;
+      return { ...version, snapshot };
+    });
+
+    normalized.eventApprovals = normalized.eventApprovals.map((approval) => {
+      const draft = approval.draft
+        ? {
+            ...approval.draft,
+            tagIds: mergeTagIds(approval.draft.tagIds, approval.draft.categoryIds),
+            categoryIds: []
+          }
+        : approval.draft;
+      const snapshot = approval.snapshot
+        ? {
+            ...approval.snapshot,
+            tagIds: mergeTagIds(approval.snapshot.tagIds, approval.snapshot.categoryIds),
+            categoryIds: []
+          }
+        : approval.snapshot;
+      return { ...approval, draft, snapshot };
+    });
   }
 
   if (!hasSuperAdmin) {
@@ -577,11 +703,6 @@ const ensureTagsExist = (data: Database, tagIds: string[]) => {
   return tagIds.filter((id) => !tagSet.has(id));
 };
 
-const ensureCategoriesExist = (data: Database, categoryIds: string[]) => {
-  const categorySet = new Set(data.categories.map((cat) => cat.id));
-  return categoryIds.filter((id) => !categorySet.has(id));
-};
-
 const normalizeNameKey = (value: string) => value.trim().toLowerCase();
 
 const normalizeIdList = (value: any) => {
@@ -644,22 +765,11 @@ const buildTagMap = (data: Database) => {
   return new Map(data.tags.map((tag) => [tag.id, tag]));
 };
 
-const buildCategoryMap = (data: Database) => {
-  return new Map(data.categories.map((category) => [category.id, category]));
-};
-
-const buildEventView = (
-  event: EventItem,
-  tagMap: Map<string, TagItem>,
-  categoryMap: Map<string, CategoryItem>
-) => {
+const buildEventView = (event: EventItem, tagMap: Map<string, TagItem>) => {
   const tags = event.tagIds
     .map((id) => tagMap.get(id))
     .filter((tag): tag is TagItem => Boolean(tag));
-  const categories = event.categoryIds
-    .map((id) => categoryMap.get(id))
-    .filter((category): category is CategoryItem => Boolean(category));
-  return { ...event, tags, categories };
+  return { ...event, tags };
 };
 
 const resolveTagIds = (data: Database, rawIds: any, rawTags?: any) => {
@@ -707,49 +817,27 @@ const resolveTagIds = (data: Database, rawIds: any, rawTags?: any) => {
   return result;
 };
 
-const resolveCategoryIds = (data: Database, rawIds: any, rawCategories?: any) => {
-  const incoming = collectIncomingNames(rawCategories);
-  const inputs = normalizeInputList(rawIds, incoming.names);
-  const idMap = new Map<string, CategoryItem>();
-  const nameMap = new Map<string, CategoryItem>();
-  data.categories.forEach((category) => {
-    idMap.set(category.id, category);
-    nameMap.set(normalizeNameKey(category.name), category);
-  });
-
-  const result: string[] = [];
-  const seen = new Set<string>();
-  for (const input of inputs) {
-    let category = idMap.get(input) ?? nameMap.get(normalizeNameKey(input));
-    if (!category) {
-      const incomingName = incoming.nameById.get(input);
-      if (incomingName) {
-        const key = normalizeNameKey(incomingName);
-        category = nameMap.get(key);
-        if (!category) {
-          category = { id: createId("cat"), name: incomingName, parentId: null };
-          data.categories.push(category);
-          idMap.set(category.id, category);
-          nameMap.set(key, category);
-        }
-      }
-    }
-    if (!category) {
-      const key = normalizeNameKey(input);
-      category = nameMap.get(key);
-      if (!category) {
-        category = { id: createId("cat"), name: input, parentId: null };
-        data.categories.push(category);
-        idMap.set(category.id, category);
-        nameMap.set(key, category);
-      }
-    }
-    if (!seen.has(category.id)) {
-      seen.add(category.id);
-      result.push(category.id);
-    }
+const resolveUnifiedTagIds = (
+  data: Database,
+  rawTagIds: any,
+  rawTags?: any,
+  rawCategoryIds?: any,
+  rawCategories?: any
+) => {
+  const tagInputs = normalizeInputList(rawTagIds, collectIncomingNames(rawTags).names);
+  const categoryInputs = normalizeInputList(
+    rawCategoryIds,
+    collectIncomingNames(rawCategories).names
+  );
+  const inputs = [...tagInputs, ...categoryInputs];
+  const incomingTags: any[] = [];
+  if (Array.isArray(rawTags)) {
+    incomingTags.push(...rawTags);
   }
-  return result;
+  if (Array.isArray(rawCategories)) {
+    incomingTags.push(...rawCategories);
+  }
+  return resolveTagIds(data, inputs, incomingTags);
 };
 
 const mergeEventTime = (current: EventTime, update: Partial<EventTime>) => {
@@ -1079,8 +1167,13 @@ export const handleLegacyRequest = async (req: any, res: any) => {
           sendError(res, 400, "BAD_REQUEST", timeError, { field: "time" });
           return;
         }
-        const tagIds = resolveTagIds(data, item.tagIds, item.tags);
-        const categoryIds = resolveCategoryIds(data, item.categoryIds, item.categories);
+        const tagIds = resolveUnifiedTagIds(
+          data,
+          item.tagIds,
+          item.tags,
+          item.categoryIds,
+          item.categories
+        );
 
         const event: EventItem = {
           id: createId("evt"),
@@ -1088,7 +1181,6 @@ export const handleLegacyRequest = async (req: any, res: any) => {
           summary: typeof item.summary === "string" ? item.summary.trim() : "",
           time,
           tagIds,
-          categoryIds,
           createdAt: now,
           updatedAt: now,
           createdBy: auth.user.id
@@ -1110,8 +1202,7 @@ export const handleLegacyRequest = async (req: any, res: any) => {
   if (pathParts[0] === "export" && pathParts[1] === "events" && method === "GET") {
     const data = await readData();
     const tagMap = buildTagMap(data);
-    const categoryMap = buildCategoryMap(data);
-    const items = data.events.map((event) => buildEventView(event, tagMap, categoryMap));
+    const items = data.events.map((event) => buildEventView(event, tagMap));
     sendJson(res, 200, { exportedAt: nowIso(), total: data.events.length, items });
     return;
   }
@@ -1165,9 +1256,10 @@ export const handleLegacyRequest = async (req: any, res: any) => {
                 sendError(res, 400, "BAD_REQUEST", "审批内容缺失");
                 return;
               }
-              const tagIds = resolveTagIds(data, approval.draft.tagIds, approval.draft.tags);
-              const categoryIds = resolveCategoryIds(
+              const tagIds = resolveUnifiedTagIds(
                 data,
+                approval.draft.tagIds,
+                approval.draft.tags,
                 approval.draft.categoryIds,
                 approval.draft.categories
               );
@@ -1178,7 +1270,6 @@ export const handleLegacyRequest = async (req: any, res: any) => {
                 summary: approval.draft.summary ?? "",
                 time: approval.draft.time,
                 tagIds,
-                categoryIds,
                 createdAt: now,
                 updatedAt: now,
                 createdBy: approval.requestedBy
@@ -1196,9 +1287,10 @@ export const handleLegacyRequest = async (req: any, res: any) => {
                 sendError(res, 404, "NOT_FOUND", "事件不存在");
                 return;
               }
-              const tagIds = resolveTagIds(data, approval.draft.tagIds, approval.draft.tags);
-              const categoryIds = resolveCategoryIds(
+              const tagIds = resolveUnifiedTagIds(
                 data,
+                approval.draft.tagIds,
+                approval.draft.tags,
                 approval.draft.categoryIds,
                 approval.draft.categories
               );
@@ -1210,7 +1302,6 @@ export const handleLegacyRequest = async (req: any, res: any) => {
                 summary: approval.draft.summary ?? "",
                 time: approval.draft.time,
                 tagIds,
-                categoryIds,
                 updatedAt: nowIso()
               };
             } else if (approval.action === "delete") {
@@ -1279,7 +1370,10 @@ export const handleLegacyRequest = async (req: any, res: any) => {
       }
 
       const tagIds = parseIds(requestUrl.searchParams.get("tagIds"));
-      const categoryIds = parseIds(requestUrl.searchParams.get("categoryIds"));
+      const legacyCategoryIds = parseIds(requestUrl.searchParams.get("categoryIds"));
+      const mergedTagIds = [...new Set([...tagIds, ...legacyCategoryIds])];
+      const tagMatch = (requestUrl.searchParams.get("tagMatch") ?? "").toLowerCase();
+      const matchAny = tagMatch === "any";
       const keywordRaw =
         requestUrl.searchParams.get("keyword") ?? requestUrl.searchParams.get("q") ?? "";
       const keyword = keywordRaw.trim().toLowerCase();
@@ -1298,11 +1392,15 @@ export const handleLegacyRequest = async (req: any, res: any) => {
           return true;
         });
       }
-      if (tagIds.length > 0) {
-        items = items.filter((event) => tagIds.some((id) => event.tagIds.includes(id)));
-      }
-      if (categoryIds.length > 0) {
-        items = items.filter((event) => categoryIds.some((id) => event.categoryIds.includes(id)));
+      if (mergedTagIds.length === 1) {
+        const target = mergedTagIds[0];
+        items = items.filter((event) => event.tagIds.includes(target));
+      } else if (mergedTagIds.length > 1) {
+        if (matchAny) {
+          items = items.filter((event) => mergedTagIds.some((id) => event.tagIds.includes(id)));
+        } else {
+          items = items.filter((event) => mergedTagIds.every((id) => event.tagIds.includes(id)));
+        }
       }
       if (keyword) {
         items = items.filter((event) => {
@@ -1315,8 +1413,7 @@ export const handleLegacyRequest = async (req: any, res: any) => {
       items.sort((a, b) => a.time.start.year - b.time.start.year);
 
       const tagMap = buildTagMap(data);
-      const categoryMap = buildCategoryMap(data);
-      const viewItems = items.map((event) => buildEventView(event, tagMap, categoryMap));
+      const viewItems = items.map((event) => buildEventView(event, tagMap));
       sendJson(res, 200, { items: viewItems, total: items.length });
       return;
     }
@@ -1334,8 +1431,7 @@ export const handleLegacyRequest = async (req: any, res: any) => {
         return titleMatch || summaryMatch;
       });
       const tagMap = buildTagMap(data);
-      const categoryMap = buildCategoryMap(data);
-      const viewItems = items.map((event) => buildEventView(event, tagMap, categoryMap));
+      const viewItems = items.map((event) => buildEventView(event, tagMap));
       sendJson(res, 200, { items: viewItems, total: items.length });
       return;
     }
@@ -1344,10 +1440,6 @@ export const handleLegacyRequest = async (req: any, res: any) => {
       const tagStats = data.tags.map((tag) => {
         const count = data.events.filter((event) => event.tagIds.includes(tag.id)).length;
         return { id: tag.id, name: tag.name, count };
-      });
-      const categoryStats = data.categories.map((cat) => {
-        const count = data.events.filter((event) => event.categoryIds.includes(cat.id)).length;
-        return { id: cat.id, name: cat.name, count };
       });
       let minYear: number | null = null;
       let maxYear: number | null = null;
@@ -1360,8 +1452,7 @@ export const handleLegacyRequest = async (req: any, res: any) => {
       sendJson(res, 200, {
         total: data.events.length,
         years: { min: minYear, max: maxYear },
-        tags: tagStats,
-        categories: categoryStats
+        tags: tagStats
       });
       return;
     }
@@ -1389,24 +1480,19 @@ export const handleLegacyRequest = async (req: any, res: any) => {
           return;
         }
 
-        const tagInputs = normalizeInputList(
+        const resolvedTagIds = resolveUnifiedTagIds(
+          data,
           payload.tagIds,
-          collectIncomingNames(payload.tags).names
-        );
-        const categoryInputs = normalizeInputList(
+          payload.tags,
           payload.categoryIds,
-          collectIncomingNames(payload.categories).names
+          payload.categories
         );
-
-        const resolvedTagIds = resolveTagIds(data, tagInputs, payload.tags);
-        const resolvedCategoryIds = resolveCategoryIds(data, categoryInputs, payload.categories);
 
         const draft: EventDraft = {
           title: payload.title.trim(),
           summary: typeof payload.summary === "string" ? payload.summary.trim() : "",
           time,
-          tagIds: resolvedTagIds,
-          categoryIds: resolvedCategoryIds
+          tagIds: resolvedTagIds
         };
 
         if (isContentEditor(auth.user.role)) {
@@ -1427,7 +1513,6 @@ export const handleLegacyRequest = async (req: any, res: any) => {
           summary: draft.summary ?? "",
           time: draft.time,
           tagIds: resolvedTagIds,
-          categoryIds: resolvedCategoryIds,
           createdAt: now,
           updatedAt: now,
           createdBy: auth.user.id
@@ -1437,8 +1522,7 @@ export const handleLegacyRequest = async (req: any, res: any) => {
         recordVersion(data, event, "create", auth.user.id);
         await writeData(data);
         const tagMap = buildTagMap(data);
-        const categoryMap = buildCategoryMap(data);
-        sendJson(res, 201, buildEventView(event, tagMap, categoryMap));
+        sendJson(res, 201, buildEventView(event, tagMap));
         return;
       } catch (error: any) {
         const message = error?.message === "PAYLOAD_TOO_LARGE" ? "请求体太大" : "请求参数错误";
@@ -1485,8 +1569,7 @@ export const handleLegacyRequest = async (req: any, res: any) => {
         recordVersion(data, restored, "restore", auth.user.id, `restore:${version.id}`);
         await writeData(data);
         const tagMap = buildTagMap(data);
-        const categoryMap = buildCategoryMap(data);
-        sendJson(res, 200, buildEventView(restored, tagMap, categoryMap));
+        sendJson(res, 200, buildEventView(restored, tagMap));
         return;
       } catch (error: any) {
         const message = error?.message === "BAD_JSON" ? "请求体不是合法 JSON" : "请求参数错误";
@@ -1505,8 +1588,7 @@ export const handleLegacyRequest = async (req: any, res: any) => {
           return;
         }
         const tagMap = buildTagMap(data);
-        const categoryMap = buildCategoryMap(data);
-        sendJson(res, 200, buildEventView(data.events[eventIndex], tagMap, categoryMap));
+        sendJson(res, 200, buildEventView(data.events[eventIndex], tagMap));
         return;
       }
 
@@ -1522,22 +1604,18 @@ export const handleLegacyRequest = async (req: any, res: any) => {
         try {
           const payload = await readJsonBody(req);
           const current = data.events[eventIndex];
-          const tagInputs =
-            payload.tagIds !== undefined
-              ? normalizeInputList(payload.tagIds, collectIncomingNames(payload.tags).names)
-              : current.tagIds;
-          const categoryInputs =
-            payload.categoryIds !== undefined
-              ? normalizeInputList(payload.categoryIds, collectIncomingNames(payload.categories).names)
-              : current.categoryIds;
-          const tagIds = resolveTagIds(data, tagInputs, payload.tags);
-          const categoryIds = resolveCategoryIds(data, categoryInputs, payload.categories);
+          const tagIds = resolveUnifiedTagIds(
+            data,
+            payload.tagIds !== undefined ? payload.tagIds : current.tagIds,
+            payload.tags,
+            payload.categoryIds !== undefined ? payload.categoryIds : current.categoryIds,
+            payload.categories
+          );
           const updated: EventItem = {
             ...current,
             title: payload.title !== undefined ? payload.title : current.title,
             summary: payload.summary !== undefined ? payload.summary : current.summary,
             tagIds,
-            categoryIds,
             time: payload.time ? mergeEventTime(current.time, payload.time) : current.time,
             updatedAt: nowIso()
           };
@@ -1557,8 +1635,7 @@ export const handleLegacyRequest = async (req: any, res: any) => {
             title: updated.title.trim(),
             summary: updated.summary ? updated.summary.trim() : "",
             time: updated.time,
-            tagIds,
-            categoryIds
+            tagIds
           };
 
           if (isContentEditor(auth.user.role)) {
@@ -1582,8 +1659,7 @@ export const handleLegacyRequest = async (req: any, res: any) => {
           };
           await writeData(data);
           const tagMap = buildTagMap(data);
-          const categoryMap = buildCategoryMap(data);
-          sendJson(res, 200, buildEventView(data.events[eventIndex], tagMap, categoryMap));
+          sendJson(res, 200, buildEventView(data.events[eventIndex], tagMap));
           return;
         } catch (error: any) {
           sendError(res, 400, "BAD_REQUEST", "请求参数错误");
@@ -1707,103 +1783,6 @@ export const handleLegacyRequest = async (req: any, res: any) => {
           return event;
         }
         return { ...event, tagIds: event.tagIds.filter((id) => id !== tagId), updatedAt: nowIso() };
-      });
-      await writeData(data);
-      sendJson(res, 200, { ok: true });
-      return;
-    }
-
-    sendError(res, 405, "BAD_REQUEST", "不支持的请求方法");
-    return;
-  }
-
-  if (pathParts[0] === "categories") {
-    const data = await readData();
-
-    if (method === "GET") {
-      sendJson(res, 200, { items: data.categories });
-      return;
-    }
-
-    if (method === "POST") {
-      const auth = await requireContentManager(req, res);
-      if (!auth) {
-        return;
-      }
-      try {
-        const payload = await readJsonBody(req);
-        if (typeof payload.name !== "string" || payload.name.trim() === "") {
-          sendError(res, 400, "BAD_REQUEST", "name 必须填写", { field: "name" });
-          return;
-        }
-        const category: CategoryItem = {
-          id: createId("cat"),
-          name: payload.name.trim(),
-          parentId: payload.parentId ?? null
-        };
-        data.categories.push(category);
-        await writeData(data);
-        sendJson(res, 201, category);
-        return;
-      } catch (error: any) {
-        sendError(res, 400, "BAD_REQUEST", "请求参数错误");
-        return;
-      }
-    }
-
-    if (pathParts.length === 2 && method === "PATCH") {
-      const auth = await requireContentManager(req, res);
-      if (!auth) {
-        return;
-      }
-      const categoryId = pathParts[1];
-      const categoryIndex = data.categories.findIndex((item) => item.id === categoryId);
-      if (categoryIndex < 0) {
-        sendError(res, 404, "NOT_FOUND", "分类不存在");
-        return;
-      }
-      try {
-        const payload = await readJsonBody(req);
-        const updated: CategoryItem = {
-          ...data.categories[categoryIndex],
-          name: payload.name !== undefined ? payload.name : data.categories[categoryIndex].name,
-          parentId: payload.parentId !== undefined ? payload.parentId : data.categories[categoryIndex].parentId
-        };
-        if (typeof updated.name !== "string" || updated.name.trim() === "") {
-          sendError(res, 400, "BAD_REQUEST", "name 必须填写", { field: "name" });
-          return;
-        }
-        data.categories[categoryIndex] = { ...updated, name: updated.name.trim() };
-        await writeData(data);
-        sendJson(res, 200, data.categories[categoryIndex]);
-        return;
-      } catch (error: any) {
-        sendError(res, 400, "BAD_REQUEST", "请求参数错误");
-        return;
-      }
-    }
-
-    if (pathParts.length === 2 && method === "DELETE") {
-      const auth = await requireContentManager(req, res);
-      if (!auth) {
-        return;
-      }
-      const categoryId = pathParts[1];
-      const categoryIndex = data.categories.findIndex((item) => item.id === categoryId);
-      if (categoryIndex < 0) {
-        sendError(res, 404, "NOT_FOUND", "分类不存在");
-        return;
-      }
-      data.categories.splice(categoryIndex, 1);
-      data.events = data.events.map((event) => {
-        if (!event.categoryIds.includes(categoryId)) {
-          return event;
-        }
-        return {
-          ...event,
-          categoryIds: event.categoryIds.filter((id) => id !== categoryId),
-          updatedAt: nowIso()
-        };
       });
       await writeData(data);
       sendJson(res, 200, { ok: true });

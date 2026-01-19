@@ -4,11 +4,11 @@ ChronoAtlas 是一个以时间线为核心的历史事件管理与展示应用�
 
 ## 已实现功能
 
-- 事件、标签、分类的增删改查
+- 事件、标签的增删改查
 - 角色权限与用户管理
 - 注册/登录/邮箱验证/重置密码/刷新登录
 - 事件版本记录与恢复
-- JSON 数据导入与导出（导入支持自动创建标签/分类）
+- JSON 数据导入与导出（导入支持自动创建标签）
 - 基础统计概览
 
 ## 本地运行
@@ -56,7 +56,6 @@ ChronoAtlas 是一个以时间线为核心的历史事件管理与展示应用�
 - 版本：GET `/events/{id}/versions`，POST `/events/{id}/restore`
 - 统计：GET `/events/aggregations`
 - 标签：GET/POST `/tags`，PATCH/DELETE `/tags/{id}`
-- 分类：GET/POST `/categories`，PATCH/DELETE `/categories/{id}`
 - 导入导出：POST `/import/events`，GET `/export/events`
 - 系统设置：GET/PUT `/settings/smtp`
 - 其他：GET `/health`，GET `/api/hello`

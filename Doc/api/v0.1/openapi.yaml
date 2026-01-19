@@ -462,10 +462,13 @@ paths:
             type: string
           description: Comma-separated ids
         - in: query
-          name: categoryIds
+          name: tagMatch
           schema:
             type: string
-          description: Comma-separated ids
+            enum:
+              - any
+              - all
+          description: Match mode for tagIds (any or all). Default is all.
         - in: query
           name: keyword
           schema:
@@ -785,103 +788,6 @@ paths:
         "404":
           $ref: "#/components/responses/Error404"
 
-  /categories:
-    get:
-      summary: List categories
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiResponseCategoriesList"
-    post:
-      summary: Create category
-      security:
-        - CookieAuth: []
-        - BearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/CsrfTokenHeader"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/NamedItemDraft"
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiResponseCategory"
-        "400":
-          $ref: "#/components/responses/Error400"
-        "401":
-          $ref: "#/components/responses/Error401"
-        "403":
-          $ref: "#/components/responses/Error403"
-
-  /categories/{id}:
-    patch:
-      summary: Update category
-      security:
-        - CookieAuth: []
-        - BearerAuth: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-        - $ref: "#/components/parameters/CsrfTokenHeader"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/NamedItemDraft"
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiResponseCategory"
-        "400":
-          $ref: "#/components/responses/Error400"
-        "401":
-          $ref: "#/components/responses/Error401"
-        "403":
-          $ref: "#/components/responses/Error403"
-        "404":
-          $ref: "#/components/responses/Error404"
-    delete:
-      summary: Delete category
-      security:
-        - CookieAuth: []
-        - BearerAuth: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-        - $ref: "#/components/parameters/CsrfTokenHeader"
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiResponseOk"
-        "401":
-          $ref: "#/components/responses/Error401"
-        "403":
-          $ref: "#/components/responses/Error403"
-        "404":
-          $ref: "#/components/responses/Error404"
-
   /import/events:
     post:
       summary: Import events
@@ -1177,28 +1083,6 @@ components:
                   items:
                     $ref: "#/components/schemas/Tag"
 
-    ApiResponseCategory:
-      allOf:
-        - $ref: "#/components/schemas/ApiResponse"
-        - type: object
-          properties:
-            data:
-              $ref: "#/components/schemas/Category"
-
-    ApiResponseCategoriesList:
-      allOf:
-        - $ref: "#/components/schemas/ApiResponse"
-        - type: object
-          properties:
-            data:
-              type: object
-              required: [items]
-              properties:
-                items:
-                  type: array
-                  items:
-                    $ref: "#/components/schemas/Category"
-
     ApiResponseImportEvents:
       allOf:
         - $ref: "#/components/schemas/ApiResponse"
@@ -1424,11 +1308,6 @@ components:
           items:
             type: string
           description: 创建/更新/导入时可填写名称，系统会自动匹配或创建
-        categoryIds:
-          type: array
-          items:
-            type: string
-          description: 创建/更新/导入时可填写名称，系统会自动匹配或创建
 
     EventPatch:
       type: object
@@ -1440,11 +1319,6 @@ components:
         time:
           $ref: "#/components/schemas/EventTime"
         tagIds:
-          type: array
-          items:
-            type: string
-          description: 创建/更新/导入时可填写名称，系统会自动匹配或创建
-        categoryIds:
           type: array
           items:
             type: string
@@ -1462,10 +1336,6 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/Tag"
-            categories:
-              type: array
-              items:
-                $ref: "#/components/schemas/Category"
             createdAt:
               type: string
             updatedAt:
@@ -1551,16 +1421,6 @@ components:
         parentId:
           type: string
 
-    Category:
-      type: object
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-        parentId:
-          type: string
-
     NamedItemDraft:
       type: object
       required: [name]
@@ -1617,17 +1477,6 @@ components:
             max:
               type: integer
         tags:
-          type: array
-          items:
-            type: object
-            properties:
-              id:
-                type: string
-              name:
-                type: string
-              count:
-                type: integer
-        categories:
           type: array
           items:
             type: object

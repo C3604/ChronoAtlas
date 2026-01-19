@@ -3,14 +3,13 @@ title: 计划中的关系型 Schema
 category: data
 status: planned
 version: v0.1
-last_updated: 2026-01-17
+last_updated: 2026-01-19
 ---
 
 # 计划中的关系型 Schema
 
-说明：本文件描述“计划中的关系型数据库结构”，用于未来从 JSON 存储迁移时参考；当前实现仍以 `db.json` 为准。
-
-首期只需支持事件、标签、分类及关联表。
+说明：本文件描述计划中的关系型数据结构，用于从 JSON 迁移时参考；当前实现仍以 `db.json` 为准。
+首期只需支持事件、标签及关联表。
 
 ## events
 
@@ -32,29 +31,18 @@ last_updated: 2026-01-17
 - name
 - parent_id (nullable)
 
-## categories
-
-- id (PK)
-- name
-- parent_id (nullable)
-
 ## event_tags
 
 - event_id (FK)
 - tag_id (FK)
 
-## event_categories
-
-- event_id (FK)
-- category_id (FK)
-
 ## 时间规则
 
-- 采用天文学年号，公元前1年=0。
+- 采用天文学年号，公元前 1 年 = 0。
 
 ## users
 
-- id (PK, ?可修改)
+- id (PK, 可修改)
 - name
 - email
 - role

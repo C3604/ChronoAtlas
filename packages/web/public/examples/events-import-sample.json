@@ -1,24 +1,22 @@
-{
+﻿{
   "items": [
     {
-      "title": "秦统一六国",
-      "summary": "秦始皇完成统一，奠定中央集权框架。",
+      "title": "Qin unifies the six states",
+      "summary": "Qin Shi Huang completes unification.",
       "time": {
         "start": { "year": -221 },
         "precision": "year"
       },
-      "tagIds": ["统一", "战争", "制度"],
-      "categoryIds": ["中国史"]
+      "tagIds": ["unification", "war", "institution", "china"]
     },
     {
-      "title": "火药用于军事",
-      "summary": "火药开始在军事中使用，推动技术扩散。",
+      "title": "Gunpowder used in warfare",
+      "summary": "Gunpowder begins to be used in military contexts.",
       "time": {
         "start": { "year": 904 },
         "precision": "year"
       },
-      "tagIds": ["技术", "军事"],
-      "categoryIds": ["科技史", "军事史"]
+      "tagIds": ["technology", "military"]
     }
   ]
 }

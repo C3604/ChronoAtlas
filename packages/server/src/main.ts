@@ -12,9 +12,18 @@ const bootstrap = async () => {
   const app = await NestFactory.create(AppModule, { cors: false });
   const config = app.get(ConfigService);
 
+  const origin = config.get<string>("WEB_ORIGIN") ?? "http://localhost:5173";
+  app.enableCors({
+    origin,
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token"],
+    methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"]
+  });
+
   app.use(cookieParser());
   app.use(new TraceIdMiddleware().use);
-  app.use(new CsrfMiddleware(config).use);
+  const csrfMiddleware = new CsrfMiddleware(config);
+  app.use(csrfMiddleware.use.bind(csrfMiddleware));
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -24,14 +33,6 @@ const bootstrap = async () => {
   );
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new ResponseInterceptor());
-
-  const origin = config.get<string>("WEB_ORIGIN") ?? "http://localhost:5173";
-  app.enableCors({
-    origin,
-    credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token"],
-    methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"]
-  });
 
   const port = Number(config.get("PORT") ?? 3000);
   await app.listen(port);

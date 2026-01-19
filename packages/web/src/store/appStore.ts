@@ -1,8 +1,7 @@
 ﻿import { computed, reactive, ref } from "vue";
 
 export type TagItem = { id: string; name: string; parentId?: string | null };
-
-export type CategoryItem = { id: string; name: string; parentId?: string | null };
+export type TagMatchMode = "any" | "all";
 
 export type EventTimePoint = { year: number; month?: number; day?: number };
 
@@ -25,9 +24,7 @@ export type EventItem = {
   summary?: string;
   time: EventTime;
   tagIds: string[];
-  categoryIds: string[];
   tags?: TagItem[];
-  categories?: CategoryItem[];
   createdAt: string;
   updatedAt: string;
   createdBy?: string;
@@ -60,7 +57,6 @@ export type Stats = {
   total: number;
   years: { min: number | null; max: number | null };
   tags: { id: string; name: string; count: number }[];
-  categories: { id: string; name: string; count: number }[];
 };
 
 export type SmtpSettings = {
@@ -79,7 +75,6 @@ export type EventDraft = {
   summary?: string;
   time: EventTime;
   tagIds: string[];
-  categoryIds: string[];
 };
 
 export type EventApproval = {
@@ -110,7 +105,6 @@ const user = ref<UserInfo | null>(null);
 const profileLoaded = ref(false);
 
 const tags = ref<TagItem[]>([]);
-const categories = ref<CategoryItem[]>([]);
 const events = ref<EventItem[]>([]);
 const versions = reactive<Record<string, EventVersion[]>>({});
 const stats = ref<Stats | null>(null);
@@ -123,7 +117,7 @@ const filters = reactive({
   timeTo: "" as string | number,
   keyword: "",
   tagIds: [] as string[],
-  categoryIds: [] as string[]
+  tagMatch: "all" as TagMatchMode
 });
 
 const roleLabels: Record<RoleName, string> = {
@@ -385,11 +379,6 @@ const loadTags = async () => {
   tags.value = data.items;
 };
 
-const loadCategories = async () => {
-  const data = await request("/categories");
-  categories.value = data.items;
-};
-
 const buildQuery = () => {
   const params = new URLSearchParams();
   if (filters.timeFrom !== "") {
@@ -401,8 +390,8 @@ const buildQuery = () => {
   if (filters.tagIds.length > 0) {
     params.set("tagIds", filters.tagIds.join(","));
   }
-  if (filters.categoryIds.length > 0) {
-    params.set("categoryIds", filters.categoryIds.join(","));
+  if (filters.tagMatch) {
+    params.set("tagMatch", filters.tagMatch);
   }
   if (filters.keyword.trim()) {
     params.set("keyword", filters.keyword.trim());
@@ -421,7 +410,7 @@ const resetFilters = () => {
   filters.timeTo = "";
   filters.keyword = "";
   filters.tagIds = [];
-  filters.categoryIds = [];
+  filters.tagMatch = "all";
 };
 
 const createEvent = async (payload: EventDraft) => {
@@ -508,30 +497,6 @@ const updateTag = async (id: string, payload: { name?: string; parentId?: string
 
 const deleteTag = async (id: string) => {
   return await request(`/tags/${id}`, { method: "DELETE" });
-};
-
-const createCategory = async (payload: { name: string; parentId?: string | null }) => {
-  return await request(
-    "/categories",
-    {
-      method: "POST",
-      body: JSON.stringify(payload)
-    }
-  );
-};
-
-const updateCategory = async (id: string, payload: { name?: string; parentId?: string | null }) => {
-  return await request(
-    `/categories/${id}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify(payload)
-    }
-  );
-};
-
-const deleteCategory = async (id: string) => {
-  return await request(`/categories/${id}`, { method: "DELETE" });
 };
 
 const loadUsers = async () => {
@@ -655,10 +620,6 @@ const mapTags = (ids: string[]) => {
   return ids.map((id) => tags.value.find((tag) => tag.id === id)?.name || id);
 };
 
-const mapCategories = (ids: string[]) => {
-  return ids.map((id) => categories.value.find((cat) => cat.id === id)?.name || id);
-};
-
 const approvalActionLabel = (action: EventApproval["action"]) => {
   if (action === "create") {
     return "新增";
@@ -683,7 +644,6 @@ export const useAppStore = () => {
     user,
     profileLoaded,
     tags,
-    categories,
     events,
     versions,
     stats,
@@ -703,7 +663,6 @@ export const useAppStore = () => {
     changePassword,
     updateProfile,
     loadTags,
-    loadCategories,
     loadEvents,
     resetFilters,
     createEvent,
@@ -717,9 +676,6 @@ export const useAppStore = () => {
     createTag,
     updateTag,
     deleteTag,
-    createCategory,
-    updateCategory,
-    deleteCategory,
     loadUsers,
     createUser,
     updateUser,
@@ -740,7 +696,6 @@ export const useAppStore = () => {
     formatDateTime,
     formatRole,
     mapTags,
-    mapCategories,
     approvalActionLabel,
     approvalTitle
   };

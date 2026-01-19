@@ -37,6 +37,7 @@ build/
 # 工具缓存
 .vite/
 .eslintcache
+.lingmaignore
 
 # 覆盖率
 coverage/

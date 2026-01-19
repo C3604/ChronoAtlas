@@ -74,6 +74,94 @@ function Get-MissingDependencies {
   return $missing | Sort-Object -Unique
 }
 
+function Get-DotEnvValue {
+  param(
+    [Parameter(Mandatory = $true)][string]$EnvPath,
+    [Parameter(Mandatory = $true)][string[]]$Keys
+  )
+
+  if (-not (Test-Path $EnvPath)) {
+    return $null
+  }
+
+  $values = @{}
+  foreach ($line in Get-Content -Path $EnvPath) {
+    $trimmed = $line.Trim()
+    if (-not $trimmed -or $trimmed.StartsWith("#")) {
+      continue
+    }
+
+    $parts = $trimmed -split "=", 2
+    if ($parts.Count -ne 2) {
+      continue
+    }
+
+    $key = $parts[0].Trim()
+    $value = $parts[1].Trim().Trim('"')
+    if ($key) {
+      $values[$key] = $value
+    }
+  }
+
+  foreach ($key in $Keys) {
+    if ($values.ContainsKey($key)) {
+      return $values[$key]
+    }
+  }
+
+  return $null
+}
+
+function Get-PortFromValue {
+  param(
+    [string]$Value
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Value)) {
+    return $null
+  }
+
+  $trimmed = $Value.Trim().Trim('"')
+  if ($trimmed -match "^\d+$") {
+    return [int]$trimmed
+  }
+
+  try {
+    $uri = [Uri]$trimmed
+    if ($uri.Port -gt 0) {
+      return $uri.Port
+    }
+  } catch {}
+
+  if ($trimmed -match ":(\d{2,5})") {
+    return [int]$Matches[1]
+  }
+
+  return $null
+}
+
+function Resolve-FrontendUrl {
+  param(
+    [string]$Value,
+    [int]$Port
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Value)) {
+    return ("http://localhost:{0}/" -f $Port)
+  }
+
+  $trimmed = $Value.Trim().Trim('"')
+  if ($trimmed -match "^\w+://") {
+    return $trimmed
+  }
+
+  if ($trimmed -match "^[^:/]+:\d+$") {
+    return ("http://{0}/" -f $trimmed)
+  }
+
+  return ("http://localhost:{0}/" -f $Port)
+}
+
 Write-Host "检查运行所需依赖..."
 
 if (-not (Test-CommandAvailable -Name "node")) {
@@ -105,6 +193,14 @@ if ($missingServer.Count -gt 0 -or $missingWeb.Count -gt 0) {
   Write-Host ("- {0}" -f $webPath)
   exit 1
 }
+
+$envPath = Join-Path $root ".env"
+$frontendValue = Get-DotEnvValue -EnvPath $envPath -Keys @("VITE_DEV_SERVER_PORT", "WEB_ORIGIN", "APP_URL")
+$resolvedPort = Get-PortFromValue -Value $frontendValue
+if ($resolvedPort) {
+  $frontPort = $resolvedPort
+}
+$frontUrl = Resolve-FrontendUrl -Value $frontendValue -Port $frontPort
 
 Write-Host "检查 3000 端口占用（仅结束 node 进程）..."
 
@@ -166,7 +262,7 @@ try {
   }
 
   if ($opened) {
-    Start-Process ("http://localhost:{0}/" -f $frontPort)
+    Start-Process $frontUrl
   }
 
   if ($frontend) {

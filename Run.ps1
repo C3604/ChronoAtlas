@@ -6,6 +6,106 @@ $webPath = Join-Path $root "packages\web"
 $backendPort = 3000
 $frontPort = 5173
 
+function Test-CommandAvailable {
+  param(
+    [Parameter(Mandatory = $true)][string]$Name
+  )
+
+  return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
+}
+
+function Get-PackageDependencies {
+  param(
+    [Parameter(Mandatory = $true)][string]$PackageJsonPath
+  )
+
+  if (-not (Test-Path $PackageJsonPath)) {
+    return @()
+  }
+
+  $pkg = Get-Content -Path $PackageJsonPath -Raw | ConvertFrom-Json
+  $deps = @()
+  if ($pkg.dependencies) {
+    $deps += $pkg.dependencies.PSObject.Properties.Name
+  }
+  if ($pkg.devDependencies) {
+    $deps += $pkg.devDependencies.PSObject.Properties.Name
+  }
+  return $deps | Sort-Object -Unique
+}
+
+function Get-MissingDependencies {
+  param(
+    [Parameter(Mandatory = $true)][string]$PackagePath
+  )
+
+  $packageJsonPath = Join-Path $PackagePath "package.json"
+  $nodeModulesPath = Join-Path $PackagePath "node_modules"
+
+  if (-not (Test-Path $nodeModulesPath)) {
+    return Get-PackageDependencies -PackageJsonPath $packageJsonPath
+  }
+
+  $missing = @()
+  Push-Location $PackagePath
+  try {
+    $raw = & npm ls --depth=0 --json 2>$null
+    if ($raw) {
+      $data = $raw | ConvertFrom-Json
+      if ($data.dependencies) {
+        foreach ($item in $data.dependencies.PSObject.Properties) {
+          if ($item.Value.missing) {
+            $missing += $item.Name
+          }
+        }
+      }
+      if ($data.problems) {
+        foreach ($problem in $data.problems) {
+          if ($problem -match "^missing: ([^@ ]+)") {
+            $missing += $Matches[1]
+          }
+        }
+      }
+    }
+  } finally {
+    Pop-Location
+  }
+
+  return $missing | Sort-Object -Unique
+}
+
+Write-Host "检查运行所需依赖..."
+
+if (-not (Test-CommandAvailable -Name "node")) {
+  Write-Host "未检测到 Node.js（包含 npm）。请先安装后再运行。"
+  exit 1
+}
+
+if (-not (Test-CommandAvailable -Name "npm")) {
+  Write-Host "未检测到 npm。请先安装 Node.js（包含 npm）后再运行。"
+  exit 1
+}
+
+$missingServer = Get-MissingDependencies -PackagePath $serverPath
+$missingWeb = Get-MissingDependencies -PackagePath $webPath
+
+if ($missingServer.Count -gt 0 -or $missingWeb.Count -gt 0) {
+  Write-Host "检测到依赖缺失，需要先安装后再运行。"
+
+  if ($missingServer.Count -gt 0) {
+    Write-Host ("后端缺少依赖：{0}" -f ($missingServer -join ", "))
+  }
+
+  if ($missingWeb.Count -gt 0) {
+    Write-Host ("前端缺少依赖：{0}" -f ($missingWeb -join ", "))
+  }
+
+  Write-Host "请在以下目录执行 npm install："
+  Write-Host ("- {0}" -f $serverPath)
+  Write-Host ("- {0}" -f $webPath)
+  exit 1
+}
+
 Write-Host "检查 3000 端口占用（仅结束 node 进程）..."
 
 try {

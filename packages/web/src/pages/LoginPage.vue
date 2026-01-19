@@ -10,7 +10,7 @@
         <a-result
           status="success"
           title="您已登录"
-          :sub-title="`${user.name} (${user.email})`"
+          :sub-title="`${user.displayName} (${user.email})`"
         >
           <template #extra>
             <a-button type="primary" @click="router.push('/content')">进入内容管理</a-button>
@@ -37,6 +37,11 @@
           登录
         </a-button>
       </a-form>
+
+      <div class="login-links">
+        <a-button type="link" @click="router.push('/register')">注册账号</a-button>
+        <a-button type="link" @click="router.push('/forgot-password')">忘记密码</a-button>
+      </div>
       
       <div class="demo-account mt-6">
         <a-divider>演示账号</a-divider>
@@ -50,11 +55,12 @@
 
 <script setup lang="ts">
 import { reactive, ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useAppStore } from "../store/appStore";
 import { UserOutlined, LockOutlined } from "@ant-design/icons-vue";
 
 const router = useRouter();
+const route = useRoute();
 const { user, login } = useAppStore();
 
 const formState = reactive({
@@ -69,7 +75,8 @@ const handleLogin = async () => {
   loading.value = true;
   try {
     await login(formState.email, formState.password);
-    await router.push("/content");
+    const target = typeof route.query.redirect === "string" ? route.query.redirect : "/content";
+    await router.push(target);
   } catch (err) {
     error.value = err instanceof Error ? err.message : "登录失败";
   } finally {
@@ -119,4 +126,9 @@ const fillDemo = () => {
 .w-full { width: 100%; display: block; }
 .text-center { text-align: center; }
 .cursor-pointer { cursor: pointer; }
+.login-links {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+}
 </style>

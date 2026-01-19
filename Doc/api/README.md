@@ -1,9 +1,9 @@
----
+﻿---
 title: API 总说明
 category: api
 status: current
 version: v0.1
-last_updated: 2026-01-17
+last_updated: 2026-01-18
 related:
   - ./v0.1/contract.md
   - ./v0.1/openapi.yaml
@@ -17,12 +17,15 @@ related:
 
 ## 鉴权
 
-- 需要登录的接口使用 `Authorization: Bearer {token}`。
+- 默认使用 Cookie（`access_token` + `refresh_token`）。
+- 非 GET/HEAD/OPTIONS 请求需带 `X-CSRF-Token`，值等于 `csrf_token` Cookie。
+- 服务端也兼容 `Authorization: Bearer {token}`。
 
 ## 响应与错误
 
 - 请求与响应均为 JSON。
-- 统一错误结构与错误码以 [contract.md](v0.1/contract.md) 为准。
+- 统一响应格式：`{ code, message, data, traceId }`。
+- 错误码与字段校验规则以 [contract.md](v0.1/contract.md) 为准。
 
 ## 时间规则
 

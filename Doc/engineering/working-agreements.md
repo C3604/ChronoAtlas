@@ -3,7 +3,7 @@ title: 工程约定
 category: engineering
 status: current
 version: v0.1
-last_updated: 2026-01-17
+last_updated: 2026-01-18
 ---
 
 # 工程约定
@@ -27,6 +27,7 @@ last_updated: 2026-01-17
 - 系统环境：Windows 10 64 bit，命令行默认 PowerShell。
 - 禁止自动安装依赖；需要安装时必须先确认。
 - 任何临时文件或测试文件，用完立即删除。
+- 登录鉴权默认使用 Cookie + CSRF（详见 ../api/v0.1/contract.md）。
 
 ## 3. 决策记录
 

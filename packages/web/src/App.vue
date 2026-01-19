@@ -32,12 +32,12 @@
                 <a-dropdown>
                   <a-button type="text" class="user-btn">
                     <template #icon><UserOutlined /></template>
-                    {{ user.name }}
+                    {{ user.displayName }}
                   </a-button>
                   <template #overlay>
                     <a-menu>
                       <a-menu-item key="role">
-                        <a-tag color="success">{{ formatRole(user.role) }}</a-tag>
+                        <a-tag color="success">{{ formatRole(user.roles) }}</a-tag>
                       </a-menu-item>
                       <a-menu-divider />
                       <a-menu-item key="content" @click="handleUserMenuClick('/content')">
@@ -102,8 +102,8 @@
         <div class="drawer-footer">
           <template v-if="user">
             <div class="user-info">
-              <span class="user-name">{{ user.name }}</span>
-              <a-tag color="success">{{ formatRole(user.role) }}</a-tag>
+              <span class="user-name">{{ user.displayName }}</span>
+              <a-tag color="success">{{ formatRole(user.roles) }}</a-tag>
             </div>
             <a-button block class="drawer-action" @click="handleUserMenuClick('/content')">
               <ReadOutlined /> 内容编辑
@@ -143,7 +143,7 @@ import {
 
 const router = useRouter();
 const route = useRoute();
-const { apiBase, status, user, loadStatus, loadProfile, logout, formatRole } = useAppStore();
+const { apiBase, status, user, loadStatus, ensureProfileLoaded, logout, formatRole } = useAppStore();
 
 // Theme State
 const isDark = ref(localStorage.getItem('theme') === 'dark');
@@ -230,7 +230,7 @@ onMounted(async () => {
     });
     console.error(`[后端服务异常] ${description}`, { apiBase });
   }
-  await loadProfile();
+  await ensureProfileLoaded();
 });
 </script>
 

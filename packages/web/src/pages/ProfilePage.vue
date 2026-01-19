@@ -4,9 +4,9 @@
       <a-col :xs="24" :sm="24" :md="20" :lg="16">
         <a-card :bordered="false" title="个人信息">
           <template #extra>
-             <span class="text-secondary">用户 ID 固定不可修改</span>
+            <span class="text-secondary">邮箱与角色由系统管理</span>
           </template>
-          
+
           <div v-if="!user" class="text-center py-8">
             <a-empty description="请先登录">
               <a-button type="primary" @click="router.push('/login')">去登录</a-button>
@@ -15,60 +15,40 @@
 
           <div v-else>
             <a-descriptions title="当前账号" bordered class="mb-6" :column="{ xs: 1, sm: 2 }">
-              <a-descriptions-item label="角色">
-                <a-tag color="blue">{{ formatRole(user.role) }}</a-tag>
-              </a-descriptions-item>
+              <a-descriptions-item label="显示名">{{ user.displayName }}</a-descriptions-item>
               <a-descriptions-item label="邮箱">{{ user.email }}</a-descriptions-item>
+              <a-descriptions-item label="角色">
+                <a-tag color="blue">{{ formatRole(user.roles) }}</a-tag>
+              </a-descriptions-item>
+              <a-descriptions-item label="邮箱验证">
+                <a-tag :color="user.emailVerified ? 'green' : 'orange'">
+                  {{ user.emailVerified ? '已验证' : '未验证' }}
+                </a-tag>
+              </a-descriptions-item>
             </a-descriptions>
 
-            <a-divider>编辑资料</a-divider>
+            <a-divider>更新显示名</a-divider>
 
-            <a-form layout="vertical" :model="form" @finish="handleSave">
-              <a-row :gutter="16">
-                <a-col :xs="24" :sm="12">
-                  <a-form-item name="name" label="用户名">
-                    <a-input v-model:value="form.name" />
-                  </a-form-item>
-                </a-col>
-                <a-col :xs="24" :sm="12">
-                  <a-form-item name="email" label="邮箱">
-                    <a-input v-model:value="form.email" />
-                  </a-form-item>
-                </a-col>
-                <a-col :span="24">
-                  <a-form-item name="password" label="新密码" help="留空表示不修改">
-                    <a-input-password v-model:value="form.password" placeholder="********" />
-                  </a-form-item>
-                </a-col>
-                <a-col :xs="24" :sm="12">
-                   <a-form-item name="profile.phone" label="电话">
-                     <a-input v-model:value="form.profile.phone" placeholder="可选" />
-                   </a-form-item>
-                </a-col>
-                <a-col :xs="24" :sm="12">
-                   <a-form-item name="profile.title" label="职位">
-                     <a-input v-model:value="form.profile.title" placeholder="可选" />
-                   </a-form-item>
-                </a-col>
-                <a-col :xs="24" :sm="12">
-                   <a-form-item name="profile.organization" label="机构">
-                     <a-input v-model:value="form.profile.organization" placeholder="可选" />
-                   </a-form-item>
-                </a-col>
-                <a-col :xs="24" :sm="12">
-                   <a-form-item name="profile.location" label="所在地">
-                     <a-input v-model:value="form.profile.location" placeholder="可选" />
-                   </a-form-item>
-                </a-col>
-                <a-col :span="24">
-                  <a-form-item name="profile.bio" label="个人简介">
-                    <a-textarea v-model:value="form.profile.bio" :rows="3" placeholder="可选" />
-                  </a-form-item>
-                </a-col>
-              </a-row>
-
+            <a-form layout="vertical" :model="profileForm" @finish="handleSaveProfile">
+              <a-form-item name="displayName" label="显示名" required>
+                <a-input v-model:value="profileForm.displayName" />
+              </a-form-item>
               <div class="form-actions">
-                <a-button type="primary" html-type="submit" :loading="loading">保存修改</a-button>
+                <a-button type="primary" html-type="submit" :loading="savingProfile">保存修改</a-button>
+              </div>
+            </a-form>
+
+            <a-divider>修改密码</a-divider>
+
+            <a-form layout="vertical" :model="passwordForm" @finish="handleChangePassword">
+              <a-form-item name="currentPassword" label="当前密码" required>
+                <a-input-password v-model:value="passwordForm.currentPassword" />
+              </a-form-item>
+              <a-form-item name="newPassword" label="新密码" required>
+                <a-input-password v-model:value="passwordForm.newPassword" />
+              </a-form-item>
+              <div class="form-actions">
+                <a-button type="primary" html-type="submit" :loading="savingPassword">更新密码</a-button>
               </div>
             </a-form>
           </div>
@@ -85,61 +65,68 @@ import { useAppStore } from "../store/appStore";
 import { message } from "ant-design-vue";
 
 const router = useRouter();
-const { user, updateUser, loadProfile, formatRole } = useAppStore();
+const { user, updateProfile, changePassword, formatRole } = useAppStore();
 
-const loading = ref(false);
+const savingProfile = ref(false);
+const savingPassword = ref(false);
 
-const form = reactive({
-  name: "",
-  email: "",
-  password: "",
-  profile: {
-    phone: "",
-    title: "",
-    organization: "",
-    location: "",
-    bio: ""
-  }
+const profileForm = reactive({
+  displayName: ""
 });
 
-const fillForm = () => {
-  if (!user.value) return;
-  form.name = user.value.name;
-  form.email = user.value.email;
-  form.password = "";
-  form.profile.phone = user.value.profile?.phone ?? "";
-  form.profile.title = user.value.profile?.title ?? "";
-  form.profile.organization = user.value.profile?.organization ?? "";
-  form.profile.location = user.value.profile?.location ?? "";
-  form.profile.bio = user.value.profile?.bio ?? "";
-};
+const passwordForm = reactive({
+  currentPassword: "",
+  newPassword: ""
+});
 
-watch(user, fillForm, { immediate: true });
+watch(
+  user,
+  (value) => {
+    if (!value) {
+      return;
+    }
+    profileForm.displayName = value.displayName;
+  },
+  { immediate: true }
+);
 
-const handleSave = async () => {
-  if (!user.value) return;
-  if (!form.name.trim() || !form.email.trim()) {
-    message.error("用户名和邮箱不能为空");
+const handleSaveProfile = async () => {
+  if (!user.value) {
     return;
   }
-  loading.value = true;
+  if (!profileForm.displayName.trim()) {
+    message.error("显示名不能为空");
+    return;
+  }
+  savingProfile.value = true;
   try {
-    const payload: any = {
-      name: form.name.trim(),
-      email: form.email.trim(),
-      profile: { ...form.profile }
-    };
-    if (form.password.trim()) {
-      payload.password = form.password;
-    }
-    await updateUser(user.value.id, payload);
-    await loadProfile();
+    await updateProfile(profileForm.displayName.trim());
     message.success("已保存");
-    form.password = "";
-  } catch (err) {
-    message.error(err instanceof Error ? err.message : "保存失败");
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : "保存失败");
   } finally {
-    loading.value = false;
+    savingProfile.value = false;
+  }
+};
+
+const handleChangePassword = async () => {
+  if (!user.value) {
+    return;
+  }
+  if (!passwordForm.currentPassword.trim() || !passwordForm.newPassword.trim()) {
+    message.error("请填写当前密码和新密码");
+    return;
+  }
+  savingPassword.value = true;
+  try {
+    await changePassword(passwordForm.currentPassword, passwordForm.newPassword);
+    message.success("密码已更新");
+    passwordForm.currentPassword = "";
+    passwordForm.newPassword = "";
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : "更新失败");
+  } finally {
+    savingPassword.value = false;
   }
 };
 </script>
@@ -148,10 +135,21 @@ const handleSave = async () => {
 .page-container {
   padding: 24px;
 }
-.text-secondary { color: var(--color-text-secondary); }
-.text-center { text-align: center; }
-.py-8 { padding-top: 32px; padding-bottom: 32px; }
-.mb-6 { margin-bottom: 24px; }
-.form-actions { text-align: right; margin-top: 16px; }
+.text-secondary {
+  color: var(--color-text-secondary);
+}
+.text-center {
+  text-align: center;
+}
+.py-8 {
+  padding-top: 32px;
+  padding-bottom: 32px;
+}
+.mb-6 {
+  margin-bottom: 24px;
+}
+.form-actions {
+  text-align: right;
+  margin-top: 16px;
+}
 </style>
-

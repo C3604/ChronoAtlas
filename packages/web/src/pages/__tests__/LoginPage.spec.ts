@@ -26,6 +26,9 @@ vi.mock("vue-router", () => ({
   useRouter: () => ({
     push: mockPush,
   }),
+  useRoute: () => ({
+    query: {}
+  }),
 }));
 
 describe("LoginPage", () => {
@@ -59,7 +62,7 @@ describe("LoginPage", () => {
   });
 
   it("renders success state when logged in", async () => {
-    user.value = { id: "1", name: "Admin", email: "admin@test.com" };
+    user.value = { id: "1", displayName: "Admin", email: "admin@test.com" };
     
     const wrapper = mount(LoginPage, {
       global: {

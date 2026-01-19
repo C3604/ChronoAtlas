@@ -1,4 +1,4 @@
-openapi: 3.0.3
+﻿openapi: 3.0.3
 info:
   title: ChronoAtlas API
   version: 0.1.0
@@ -14,12 +14,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                  time:
-                    type: string
+                $ref: "#/components/schemas/ApiResponseHealth"
 
   /api/hello:
     get:
@@ -30,12 +25,26 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                  time:
-                    type: string
+                $ref: "#/components/schemas/ApiResponseHello"
+
+  /auth/register:
+    post:
+      summary: Register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthRegisterRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseRegister"
+        "400":
+          $ref: "#/components/responses/Error400"
 
   /auth/login:
     post:
@@ -47,12 +56,156 @@ paths:
             schema:
               $ref: "#/components/schemas/AuthLoginRequest"
       responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseUser"
+        "400":
+          $ref: "#/components/responses/Error400"
+        "401":
+          $ref: "#/components/responses/Error401"
+        "403":
+          $ref: "#/components/responses/Error403"
+
+  /auth/logout:
+    post:
+      summary: Logout
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfTokenHeader"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseOk"
+        "401":
+          $ref: "#/components/responses/Error401"
+
+  /auth/refresh:
+    post:
+      summary: Refresh token
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseUser"
+        "401":
+          $ref: "#/components/responses/Error401"
+        "403":
+          $ref: "#/components/responses/Error403"
+
+  /auth/verify-email:
+    post:
+      summary: Verify email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyEmailRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseOk"
+        "400":
+          $ref: "#/components/responses/Error400"
+
+  /auth/forgot-password:
+    post:
+      summary: Forgot password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseOk"
+        "400":
+          $ref: "#/components/responses/Error400"
+
+  /auth/reset-password:
+    post:
+      summary: Reset password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseOk"
+        "400":
+          $ref: "#/components/responses/Error400"
+
+  /auth/change-password:
+    post:
+      summary: Change password
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfTokenHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseOk"
+        "400":
+          $ref: "#/components/responses/Error400"
+        "401":
+          $ref: "#/components/responses/Error401"
+
+  /auth/profile:
+    patch:
+      summary: Update profile
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfTokenHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+      responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthLoginResponse"
+                $ref: "#/components/schemas/ApiResponseUser"
         "400":
           $ref: "#/components/responses/Error400"
         "401":
@@ -62,6 +215,7 @@ paths:
     get:
       summary: Current user
       security:
+        - CookieAuth: []
         - BearerAuth: []
       responses:
         "200":
@@ -69,25 +223,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthMeResponse"
-        "401":
-          $ref: "#/components/responses/Error401"
-
-  /auth/logout:
-    post:
-      summary: Logout
-      security:
-        - BearerAuth: []
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  ok:
-                    type: boolean
+                $ref: "#/components/schemas/ApiResponseUser"
         "401":
           $ref: "#/components/responses/Error401"
 
@@ -95,6 +231,7 @@ paths:
     get:
       summary: List users
       security:
+        - CookieAuth: []
         - BearerAuth: []
       responses:
         "200":
@@ -102,7 +239,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UsersListResponse"
+                $ref: "#/components/schemas/ApiResponseUsersList"
         "401":
           $ref: "#/components/responses/Error401"
         "403":
@@ -110,7 +247,10 @@ paths:
     post:
       summary: Create user
       security:
+        - CookieAuth: []
         - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfTokenHeader"
       requestBody:
         required: true
         content:
@@ -123,7 +263,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserResponse"
+                $ref: "#/components/schemas/ApiResponseUser"
         "400":
           $ref: "#/components/responses/Error400"
         "401":
@@ -135,6 +275,7 @@ paths:
     patch:
       summary: Update user
       security:
+        - CookieAuth: []
         - BearerAuth: []
       parameters:
         - in: path
@@ -142,6 +283,7 @@ paths:
           required: true
           schema:
             type: string
+        - $ref: "#/components/parameters/CsrfTokenHeader"
       requestBody:
         required: true
         content:
@@ -154,28 +296,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserResponse"
-        "400":
-          $ref: "#/components/responses/Error400"
-        "401":
-          $ref: "#/components/responses/Error401"
-        "403":
-          $ref: "#/components/responses/Error403"
-        "404":
-          $ref: "#/components/responses/Error404"
-    delete:
-      summary: Delete user
-      security:
-        - BearerAuth: []
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      responses:
-        "204":
-          description: No Content
+                $ref: "#/components/schemas/ApiResponseUser"
         "400":
           $ref: "#/components/responses/Error400"
         "401":
@@ -185,10 +306,55 @@ paths:
         "404":
           $ref: "#/components/responses/Error404"
 
+  /settings/smtp:
+    get:
+      summary: Get SMTP settings
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseSmtpSettings"
+        "401":
+          $ref: "#/components/responses/Error401"
+        "403":
+          $ref: "#/components/responses/Error403"
+    put:
+      summary: Update SMTP settings
+      security:
+        - CookieAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfTokenHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSmtpSettingsRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseSmtpSettings"
+        "400":
+          $ref: "#/components/responses/Error400"
+        "401":
+          $ref: "#/components/responses/Error401"
+        "403":
+          $ref: "#/components/responses/Error403"
+
   /events/approvals:
     get:
       summary: List event approvals
       security:
+        - CookieAuth: []
         - BearerAuth: []
       parameters:
         - in: query
@@ -202,7 +368,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EventApprovalsResponse"
+                $ref: "#/components/schemas/ApiResponseEventApprovals"
         "401":
           $ref: "#/components/responses/Error401"
         "403":
@@ -212,6 +378,7 @@ paths:
     post:
       summary: Approve event approval
       security:
+        - CookieAuth: []
         - BearerAuth: []
       parameters:
         - in: path
@@ -219,6 +386,7 @@ paths:
           required: true
           schema:
             type: string
+        - $ref: "#/components/parameters/CsrfTokenHeader"
       requestBody:
         required: true
         content:
@@ -231,7 +399,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApprovalDecisionResponse"
+                $ref: "#/components/schemas/ApiResponseApprovalDecision"
         "400":
           $ref: "#/components/responses/Error400"
         "401":
@@ -245,6 +413,7 @@ paths:
     post:
       summary: Reject event approval
       security:
+        - CookieAuth: []
         - BearerAuth: []
       parameters:
         - in: path
@@ -252,6 +421,7 @@ paths:
           required: true
           schema:
             type: string
+        - $ref: "#/components/parameters/CsrfTokenHeader"
       requestBody:
         required: true
         content:
@@ -264,7 +434,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApprovalDecisionResponse"
+                $ref: "#/components/schemas/ApiResponseApprovalDecision"
         "400":
           $ref: "#/components/responses/Error400"
         "401":
@@ -311,13 +481,16 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EventsListResponse"
+                $ref: "#/components/schemas/ApiResponseEventsList"
         "400":
           $ref: "#/components/responses/Error400"
     post:
       summary: Create event
       security:
+        - CookieAuth: []
         - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfTokenHeader"
       requestBody:
         required: true
         content:
@@ -330,13 +503,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Event"
+                $ref: "#/components/schemas/ApiResponseEvent"
         "202":
           description: Accepted (approval required)
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PendingResponse"
+                $ref: "#/components/schemas/ApiResponsePending"
         "400":
           $ref: "#/components/responses/Error400"
         "401":
@@ -359,7 +532,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EventsListResponse"
+                $ref: "#/components/schemas/ApiResponseEventsList"
         "400":
           $ref: "#/components/responses/Error400"
 
@@ -372,7 +545,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EventAggregationsResponse"
+                $ref: "#/components/schemas/ApiResponseEventAggregations"
 
   /events/{id}:
     get:
@@ -389,12 +562,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Event"
+                $ref: "#/components/schemas/ApiResponseEvent"
         "404":
           $ref: "#/components/responses/Error404"
     patch:
       summary: Update event
       security:
+        - CookieAuth: []
         - BearerAuth: []
       parameters:
         - in: path
@@ -402,6 +576,7 @@ paths:
           required: true
           schema:
             type: string
+        - $ref: "#/components/parameters/CsrfTokenHeader"
       requestBody:
         required: true
         content:
@@ -414,13 +589,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Event"
+                $ref: "#/components/schemas/ApiResponseEvent"
         "202":
           description: Accepted (approval required)
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PendingResponse"
+                $ref: "#/components/schemas/ApiResponsePending"
         "400":
           $ref: "#/components/responses/Error400"
         "401":
@@ -432,6 +607,7 @@ paths:
     delete:
       summary: Delete event
       security:
+        - CookieAuth: []
         - BearerAuth: []
       parameters:
         - in: path
@@ -439,15 +615,20 @@ paths:
           required: true
           schema:
             type: string
+        - $ref: "#/components/parameters/CsrfTokenHeader"
       responses:
-        "204":
-          description: No Content
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseOk"
         "202":
           description: Accepted (approval required)
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PendingResponse"
+                $ref: "#/components/schemas/ApiResponsePending"
         "401":
           $ref: "#/components/responses/Error401"
         "403":
@@ -470,12 +651,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EventVersionsResponse"
+                $ref: "#/components/schemas/ApiResponseEventVersions"
 
   /events/{id}/restore:
     post:
       summary: Restore event version
       security:
+        - CookieAuth: []
         - BearerAuth: []
       parameters:
         - in: path
@@ -483,6 +665,7 @@ paths:
           required: true
           schema:
             type: string
+        - $ref: "#/components/parameters/CsrfTokenHeader"
       requestBody:
         required: true
         content:
@@ -495,7 +678,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Event"
+                $ref: "#/components/schemas/ApiResponseEvent"
         "400":
           $ref: "#/components/responses/Error400"
         "401":
@@ -514,11 +697,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TagsListResponse"
+                $ref: "#/components/schemas/ApiResponseTagsList"
     post:
       summary: Create tag
       security:
+        - CookieAuth: []
         - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfTokenHeader"
       requestBody:
         required: true
         content:
@@ -531,7 +717,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Tag"
+                $ref: "#/components/schemas/ApiResponseTag"
         "400":
           $ref: "#/components/responses/Error400"
         "401":
@@ -543,6 +729,7 @@ paths:
     patch:
       summary: Update tag
       security:
+        - CookieAuth: []
         - BearerAuth: []
       parameters:
         - in: path
@@ -550,6 +737,7 @@ paths:
           required: true
           schema:
             type: string
+        - $ref: "#/components/parameters/CsrfTokenHeader"
       requestBody:
         required: true
         content:
@@ -562,7 +750,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Tag"
+                $ref: "#/components/schemas/ApiResponseTag"
         "400":
           $ref: "#/components/responses/Error400"
         "401":
@@ -574,6 +762,7 @@ paths:
     delete:
       summary: Delete tag
       security:
+        - CookieAuth: []
         - BearerAuth: []
       parameters:
         - in: path
@@ -581,9 +770,14 @@ paths:
           required: true
           schema:
             type: string
+        - $ref: "#/components/parameters/CsrfTokenHeader"
       responses:
-        "204":
-          description: No Content
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseOk"
         "401":
           $ref: "#/components/responses/Error401"
         "403":
@@ -600,11 +794,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CategoriesListResponse"
+                $ref: "#/components/schemas/ApiResponseCategoriesList"
     post:
       summary: Create category
       security:
+        - CookieAuth: []
         - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfTokenHeader"
       requestBody:
         required: true
         content:
@@ -617,7 +814,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Category"
+                $ref: "#/components/schemas/ApiResponseCategory"
         "400":
           $ref: "#/components/responses/Error400"
         "401":
@@ -629,6 +826,7 @@ paths:
     patch:
       summary: Update category
       security:
+        - CookieAuth: []
         - BearerAuth: []
       parameters:
         - in: path
@@ -636,6 +834,7 @@ paths:
           required: true
           schema:
             type: string
+        - $ref: "#/components/parameters/CsrfTokenHeader"
       requestBody:
         required: true
         content:
@@ -648,7 +847,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Category"
+                $ref: "#/components/schemas/ApiResponseCategory"
         "400":
           $ref: "#/components/responses/Error400"
         "401":
@@ -660,6 +859,7 @@ paths:
     delete:
       summary: Delete category
       security:
+        - CookieAuth: []
         - BearerAuth: []
       parameters:
         - in: path
@@ -667,9 +867,14 @@ paths:
           required: true
           schema:
             type: string
+        - $ref: "#/components/parameters/CsrfTokenHeader"
       responses:
-        "204":
-          description: No Content
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponseOk"
         "401":
           $ref: "#/components/responses/Error401"
         "403":
@@ -681,7 +886,10 @@ paths:
     post:
       summary: Import events
       security:
+        - CookieAuth: []
         - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CsrfTokenHeader"
       requestBody:
         required: true
         content:
@@ -694,7 +902,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ImportEventsResponse"
+                $ref: "#/components/schemas/ApiResponseImportEvents"
         "400":
           $ref: "#/components/responses/Error400"
         "401":
@@ -711,48 +919,309 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ExportEventsResponse"
+                $ref: "#/components/schemas/ApiResponseExportEvents"
 
 components:
   securitySchemes:
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
     BearerAuth:
       type: http
       scheme: bearer
+  parameters:
+    CsrfTokenHeader:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema:
+        type: string
+      description: 与 csrf_token Cookie 相同
   responses:
     Error400:
       description: Bad Request
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/Error"
+            $ref: "#/components/schemas/ErrorResponse"
     Error401:
       description: Unauthorized
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/Error"
+            $ref: "#/components/schemas/ErrorResponse"
     Error403:
       description: Forbidden
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/Error"
+            $ref: "#/components/schemas/ErrorResponse"
     Error404:
       description: Not Found
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/Error"
+            $ref: "#/components/schemas/ErrorResponse"
   schemas:
-    Error:
+    ApiResponse:
       type: object
+      required: [code, message, data, traceId]
       properties:
         code:
           type: string
         message:
           type: string
-        details:
-          type: object
+        data:
+          nullable: true
+        traceId:
+          type: string
+
+    ErrorResponse:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            code:
+              type: string
+              example: AUTH_001
+            message:
+              type: string
+              example: 需要登录
+            data:
+              nullable: true
+
+    ApiResponseOk:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [ok]
+              properties:
+                ok:
+                  type: boolean
+
+    ApiResponseHealth:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                status:
+                  type: string
+                time:
+                  type: string
+
+    ApiResponseHello:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                message:
+                  type: string
+                time:
+                  type: string
+
+    ApiResponseUser:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [user]
+              properties:
+                user:
+                  $ref: "#/components/schemas/User"
+
+    ApiResponseRegister:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [user, emailSent]
+              properties:
+                user:
+                  $ref: "#/components/schemas/User"
+                emailSent:
+                  type: boolean
+
+    ApiResponseUsersList:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/User"
+
+    ApiResponseSmtpSettings:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [settings]
+              properties:
+                settings:
+                  $ref: "#/components/schemas/SmtpSettings"
+
+    ApiResponseEvent:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/Event"
+
+    ApiResponseEventsList:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [items, total]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Event"
+                total:
+                  type: integer
+
+    ApiResponsePending:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/PendingResponse"
+
+    ApiResponseEventVersions:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/EventVersion"
+
+    ApiResponseEventApprovals:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/EventApproval"
+
+    ApiResponseApprovalDecision:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [ok, approval]
+              properties:
+                ok:
+                  type: boolean
+                approval:
+                  $ref: "#/components/schemas/EventApproval"
+
+    ApiResponseTag:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/Tag"
+
+    ApiResponseTagsList:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Tag"
+
+    ApiResponseCategory:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/Category"
+
+    ApiResponseCategoriesList:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Category"
+
+    ApiResponseImportEvents:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/ImportEventsResponse"
+
+    ApiResponseExportEvents:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/ExportEventsResponse"
+
+    ApiResponseEventAggregations:
+      allOf:
+        - $ref: "#/components/schemas/ApiResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/EventAggregations"
 
     AuthLoginRequest:
       type: object
@@ -763,82 +1232,157 @@ components:
         password:
           type: string
 
-    AuthLoginResponse:
+    AuthRegisterRequest:
       type: object
-      required: [token, expiresAt, user]
+      required: [email, displayName, password]
+      properties:
+        email:
+          type: string
+        displayName:
+          type: string
+        password:
+          type: string
+
+    VerifyEmailRequest:
+      type: object
+      required: [token]
       properties:
         token:
           type: string
-        expiresAt:
-          type: string
-        user:
-          $ref: "#/components/schemas/UserPublic"
 
-    AuthMeResponse:
+    ForgotPasswordRequest:
       type: object
-      required: [user]
+      required: [email]
       properties:
-        user:
-          $ref: "#/components/schemas/UserPublic"
+        email:
+          type: string
 
-    UserPublic:
+    ResetPasswordRequest:
+      type: object
+      required: [token, newPassword]
+      properties:
+        token:
+          type: string
+        newPassword:
+          type: string
+
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+        newPassword:
+          type: string
+
+    UpdateProfileRequest:
+      type: object
+      required: [displayName]
+      properties:
+        displayName:
+          type: string
+
+    User:
       type: object
       properties:
         id:
           type: string
-        name:
-          type: string
         email:
           type: string
-        role:
+        displayName:
           type: string
-        profile:
-          type: object
-
-    UsersListResponse:
-      type: object
-      required: [items]
-      properties:
-        items:
+        roles:
           type: array
           items:
-            $ref: "#/components/schemas/UserPublic"
+            $ref: "#/components/schemas/RoleName"
+        isActive:
+          type: boolean
+        emailVerified:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+        lastLoginAt:
+          type: string
+          nullable: true
 
-    UserResponse:
-      type: object
-      required: [user]
-      properties:
-        user:
-          $ref: "#/components/schemas/UserPublic"
+    RoleName:
+      type: string
+      enum: [SUPER_ADMIN, ADMIN, EDITOR, USER]
 
     CreateUserRequest:
       type: object
-      required: [name, email, password, role]
+      required: [email, displayName, password]
       properties:
-        name:
-          type: string
         email:
+          type: string
+        displayName:
           type: string
         password:
           type: string
-        role:
-          type: string
-        profile:
-          type: object
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleName"
+        isActive:
+          type: boolean
 
     UpdateUserRequest:
       type: object
       properties:
-        name:
-          type: string
         email:
+          type: string
+        displayName:
           type: string
         password:
           type: string
-        role:
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleName"
+        isActive:
+          type: boolean
+
+    SmtpSettings:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        host:
           type: string
-        profile:
-          type: object
+        port:
+          type: integer
+        secure:
+          type: boolean
+        username:
+          type: string
+        fromAddress:
+          type: string
+        hasPassword:
+          type: boolean
+        updatedAt:
+          type: string
+          nullable: true
+
+    UpdateSmtpSettingsRequest:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+        host:
+          type: string
+        port:
+          type: integer
+        secure:
+          type: boolean
+        username:
+          type: string
+        password:
+          type: string
+        fromAddress:
+          type: string
 
     TimePoint:
       type: object
@@ -861,6 +1405,7 @@ components:
           $ref: "#/components/schemas/TimePoint"
         precision:
           type: string
+          enum: [century, decade, year, month, day]
         fuzzy:
           type: object
 
@@ -926,17 +1471,6 @@ components:
             updatedAt:
               type: string
 
-    EventsListResponse:
-      type: object
-      required: [items, total]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/Event"
-        total:
-          type: integer
-
     PendingResponse:
       type: object
       required: [pending, approvalId]
@@ -963,15 +1497,6 @@ components:
           type: string
         snapshot:
           $ref: "#/components/schemas/Event"
-
-    EventVersionsResponse:
-      type: object
-      required: [items]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/EventVersion"
 
     EventRestoreRequest:
       type: object
@@ -1010,29 +1535,11 @@ components:
         resultEventId:
           type: string
 
-    EventApprovalsResponse:
-      type: object
-      required: [items]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/EventApproval"
-
     ApprovalDecisionRequest:
       type: object
       properties:
         note:
           type: string
-
-    ApprovalDecisionResponse:
-      type: object
-      required: [ok, approval]
-      properties:
-        ok:
-          type: boolean
-        approval:
-          $ref: "#/components/schemas/EventApproval"
 
     Tag:
       type: object
@@ -1053,24 +1560,6 @@ components:
           type: string
         parentId:
           type: string
-
-    TagsListResponse:
-      type: object
-      required: [items]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/Tag"
-
-    CategoriesListResponse:
-      type: object
-      required: [items]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/Category"
 
     NamedItemDraft:
       type: object
@@ -1115,7 +1604,7 @@ components:
           items:
             $ref: "#/components/schemas/Event"
 
-    EventAggregationsResponse:
+    EventAggregations:
       type: object
       properties:
         total:
@@ -1149,4 +1638,3 @@ components:
                 type: string
               count:
                 type: integer
-

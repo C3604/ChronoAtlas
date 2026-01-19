@@ -1,4 +1,4 @@
-import { computed, reactive, ref } from "vue";
+﻿import { computed, reactive, ref } from "vue";
 
 export type TagItem = { id: string; name: string; parentId?: string | null };
 
@@ -33,17 +33,19 @@ export type EventItem = {
   createdBy?: string;
 };
 
-export type UserRole = "super_admin" | "account_admin" | "content_admin" | "content_editor";
+export type RoleName = "SUPER_ADMIN" | "ADMIN" | "EDITOR" | "USER";
 
-export type UserProfile = {
-  phone?: string;
-  title?: string;
-  organization?: string;
-  location?: string;
-  bio?: string;
+export type UserInfo = {
+  id: string;
+  email: string;
+  displayName: string;
+  roles: RoleName[];
+  isActive: boolean;
+  emailVerified: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  lastLoginAt?: string;
 };
-
-export type UserInfo = { id: string; name: string; email: string; role: UserRole; profile?: UserProfile };
 
 export type EventVersion = {
   id: string;
@@ -59,6 +61,17 @@ export type Stats = {
   years: { min: number | null; max: number | null };
   tags: { id: string; name: string; count: number }[];
   categories: { id: string; name: string; count: number }[];
+};
+
+export type SmtpSettings = {
+  enabled: boolean;
+  host: string;
+  port: number;
+  secure: boolean;
+  username: string;
+  fromAddress: string;
+  hasPassword: boolean;
+  updatedAt: string | null;
 };
 
 export type EventDraft = {
@@ -86,15 +99,15 @@ export type EventApproval = {
 };
 
 const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || "http://localhost:3000";
-const tokenKey = "chronoatlas_token";
+const csrfCookieName = (import.meta.env.VITE_CSRF_COOKIE_NAME as string) || "csrf_token";
 
 const status = reactive({
   ok: false,
   text: "未检测"
 });
 
-const token = ref(localStorage.getItem(tokenKey) || "");
 const user = ref<UserInfo | null>(null);
+const profileLoaded = ref(false);
 
 const tags = ref<TagItem[]>([]);
 const categories = ref<CategoryItem[]>([]);
@@ -103,6 +116,7 @@ const versions = reactive<Record<string, EventVersion[]>>({});
 const stats = ref<Stats | null>(null);
 const users = ref<UserInfo[]>([]);
 const approvals = ref<EventApproval[]>([]);
+const smtpSettings = ref<SmtpSettings | null>(null);
 
 const filters = reactive({
   timeFrom: "" as string | number,
@@ -112,58 +126,140 @@ const filters = reactive({
   categoryIds: [] as string[]
 });
 
-const roleLabels: Record<UserRole, string> = {
-  super_admin: "超级管理员",
-  account_admin: "账号管理员",
-  content_admin: "内容管理员",
-  content_editor: "内容编辑"
+const roleLabels: Record<RoleName, string> = {
+  SUPER_ADMIN: "超级管理员",
+  ADMIN: "管理员",
+  EDITOR: "内容编辑",
+  USER: "普通用户"
 };
 
-const saveToken = (value: string) => {
-  token.value = value;
-  if (value) {
-    localStorage.setItem(tokenKey, value);
-  } else {
-    localStorage.removeItem(tokenKey);
+const pickPrimaryRole = (roles: RoleName[]) => {
+  if (roles.includes("SUPER_ADMIN")) {
+    return "SUPER_ADMIN";
   }
+  if (roles.includes("ADMIN")) {
+    return "ADMIN";
+  }
+  if (roles.includes("EDITOR")) {
+    return "EDITOR";
+  }
+  return "USER";
 };
 
 const clearAuth = () => {
-  saveToken("");
   user.value = null;
   users.value = [];
   approvals.value = [];
+  smtpSettings.value = null;
+  profileLoaded.value = false;
 };
 
-const request = async (path: string, options: RequestInit = {}, useAuth = false) => {
-  const headers = new Headers(options.headers || {});
-  if (useAuth && token.value) {
-    headers.set("Authorization", `Bearer ${token.value}`);
+const readCookie = (name: string) => {
+  if (typeof document === "undefined") {
+    return "";
   }
+  const target = `${name}=`;
+  const parts = document.cookie.split(";");
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (trimmed.startsWith(target)) {
+      return decodeURIComponent(trimmed.slice(target.length));
+    }
+  }
+  return "";
+};
+
+const shouldAttachCsrf = (method: string) => {
+  return !["GET", "HEAD", "OPTIONS"].includes(method);
+};
+
+const refreshExcluded = new Set([
+  "/auth/login",
+  "/auth/refresh",
+  "/auth/register",
+  "/auth/forgot-password",
+  "/auth/reset-password",
+  "/auth/verify-email"
+]);
+
+let refreshPromise: Promise<void> | null = null;
+
+const refreshSession = async () => {
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+  refreshPromise = (async () => {
+    await request(
+      "/auth/refresh",
+      {
+        method: "POST",
+        body: "{}"
+      },
+      { skipRefresh: true }
+    );
+    await loadProfile();
+  })()
+    .catch(() => {
+      clearAuth();
+    })
+    .finally(() => {
+      refreshPromise = null;
+    });
+  return refreshPromise;
+};
+
+const request = async (
+  path: string,
+  options: RequestInit = {},
+  config: { skipRefresh?: boolean } = {}
+) => {
+  const headers = new Headers(options.headers || {});
+  const method = (options.method || "GET").toUpperCase();
   if (options.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
-  const response = await fetch(`${apiBase.replace(/\/$/, "")}${path}`, { ...options, headers });
-  if (response.status === 401) {
-    clearAuth();
-    throw new Error("需要登录");
-  }
-  if (!response.ok) {
-    let message = `请求失败（${response.status}）`;
-    try {
-      const err = await response.json();
-      if (err?.message) {
-        message = err.message as string;
-      }
-    } catch (error) {
-      // ignore
+  if (shouldAttachCsrf(method)) {
+    const csrfToken = readCookie(csrfCookieName);
+    if (csrfToken) {
+      headers.set("X-CSRF-Token", csrfToken);
     }
-    throw new Error(message);
   }
+  const response = await fetch(`${apiBase.replace(/\/$/, "")}${path}`, {
+    ...options,
+    headers,
+    credentials: "include"
+  });
+
+  if (
+    response.status === 401 &&
+    !config.skipRefresh &&
+    !refreshExcluded.has(path)
+  ) {
+    await refreshSession();
+    return request(path, options, { skipRefresh: true });
+  }
+
   if (response.status === 204) {
     return null;
   }
-  return (await response.json()) as any;
+
+  let payload: any = null;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    const message = payload?.message || `请求失败（${response.status}）`;
+    throw new Error(message);
+  }
+
+  if (payload?.code && payload.code !== "OK") {
+    throw new Error(payload.message || "请求失败");
+  }
+
+  return payload?.data ?? null;
 };
 
 const loadStatus = async () => {
@@ -178,35 +274,110 @@ const loadStatus = async () => {
 };
 
 const loadProfile = async () => {
-  if (!token.value) {
-    return;
-  }
   try {
-    const data = await request("/auth/me", {}, true);
+    const data = await request("/auth/me");
     user.value = data.user as UserInfo;
   } catch (error) {
     clearAuth();
+  } finally {
+    profileLoaded.value = true;
   }
 };
 
+const ensureProfileLoaded = async () => {
+  if (profileLoaded.value) {
+    return;
+  }
+  await loadProfile();
+};
+
 const login = async (email: string, password: string) => {
-  const data = await request("/auth/login", {
-    method: "POST",
-    body: JSON.stringify({ email, password })
-  });
-  saveToken(data.token);
+  const data = await request(
+    "/auth/login",
+    {
+      method: "POST",
+      body: JSON.stringify({ email, password })
+    },
+    { skipRefresh: true }
+  );
   user.value = data.user as UserInfo;
-  return data as { token: string; user: UserInfo; expiresAt: string };
+  profileLoaded.value = true;
+  return data as { user: UserInfo };
 };
 
 const logout = async () => {
   try {
-    await request("/auth/logout", { method: "POST" }, true);
+    await request(
+      "/auth/logout",
+      { method: "POST", body: "{}" },
+      { skipRefresh: true }
+    );
   } catch (error) {
     // ignore
   } finally {
     clearAuth();
   }
+};
+
+const register = async (email: string, displayName: string, password: string) => {
+  return await request(
+    "/auth/register",
+    {
+      method: "POST",
+      body: JSON.stringify({ email, displayName, password })
+    },
+    { skipRefresh: true }
+  );
+};
+
+const verifyEmail = async (token: string) => {
+  return await request(
+    "/auth/verify-email",
+    {
+      method: "POST",
+      body: JSON.stringify({ token })
+    },
+    { skipRefresh: true }
+  );
+};
+
+const forgotPassword = async (email: string) => {
+  return await request(
+    "/auth/forgot-password",
+    {
+      method: "POST",
+      body: JSON.stringify({ email })
+    },
+    { skipRefresh: true }
+  );
+};
+
+const resetPassword = async (token: string, newPassword: string) => {
+  return await request(
+    "/auth/reset-password",
+    {
+      method: "POST",
+      body: JSON.stringify({ token, newPassword })
+    },
+    { skipRefresh: true }
+  );
+};
+
+const changePassword = async (currentPassword: string, newPassword: string) => {
+  return await request("/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify({ currentPassword, newPassword })
+  });
+};
+
+const updateProfile = async (displayName: string) => {
+  const data = await request("/auth/profile", {
+    method: "PATCH",
+    body: JSON.stringify({ displayName })
+  });
+  user.value = data.user as UserInfo;
+  profileLoaded.value = true;
+  return data as { user: UserInfo };
 };
 
 const loadTags = async () => {
@@ -259,8 +430,7 @@ const createEvent = async (payload: EventDraft) => {
     {
       method: "POST",
       body: JSON.stringify(payload)
-    },
-    true
+    }
   );
 };
 
@@ -270,13 +440,12 @@ const updateEvent = async (id: string, payload: EventDraft) => {
     {
       method: "PATCH",
       body: JSON.stringify(payload)
-    },
-    true
+    }
   );
 };
 
 const deleteEvent = async (id: string) => {
-  return await request(`/events/${id}`, { method: "DELETE" }, true);
+  return await request(`/events/${id}`, { method: "DELETE" });
 };
 
 const loadVersions = async (eventId: string) => {
@@ -290,8 +459,7 @@ const restoreVersion = async (eventId: string, versionId: string) => {
     {
       method: "POST",
       body: JSON.stringify({ versionId })
-    },
-    true
+    }
   );
 };
 
@@ -314,8 +482,7 @@ const importEvents = async (mode: "merge" | "replace", items: EventItem[]) => {
     {
       method: "POST",
       body: JSON.stringify({ mode, items })
-    },
-    true
+    }
   );
 };
 
@@ -325,8 +492,7 @@ const createTag = async (payload: { name: string; parentId?: string | null }) =>
     {
       method: "POST",
       body: JSON.stringify(payload)
-    },
-    true
+    }
   );
 };
 
@@ -336,13 +502,12 @@ const updateTag = async (id: string, payload: { name?: string; parentId?: string
     {
       method: "PATCH",
       body: JSON.stringify(payload)
-    },
-    true
+    }
   );
 };
 
 const deleteTag = async (id: string) => {
-  return await request(`/tags/${id}`, { method: "DELETE" }, true);
+  return await request(`/tags/${id}`, { method: "DELETE" });
 };
 
 const createCategory = async (payload: { name: string; parentId?: string | null }) => {
@@ -351,8 +516,7 @@ const createCategory = async (payload: { name: string; parentId?: string | null 
     {
       method: "POST",
       body: JSON.stringify(payload)
-    },
-    true
+    }
   );
 };
 
@@ -362,78 +526,93 @@ const updateCategory = async (id: string, payload: { name?: string; parentId?: s
     {
       method: "PATCH",
       body: JSON.stringify(payload)
-    },
-    true
+    }
   );
 };
 
 const deleteCategory = async (id: string) => {
-  return await request(`/categories/${id}`, { method: "DELETE" }, true);
+  return await request(`/categories/${id}`, { method: "DELETE" });
 };
 
 const loadUsers = async () => {
-  const data = await request("/users", {}, true);
+  const data = await request("/users");
   users.value = data.items as UserInfo[];
 };
 
 const createUser = async (payload: {
-  name: string;
+  displayName: string;
   email: string;
   password: string;
-  role: UserRole;
-  profile?: UserProfile;
+  roles?: RoleName[];
+  isActive?: boolean;
 }) => {
-  return await request(
-    "/users",
-    {
-      method: "POST",
-      body: JSON.stringify(payload)
-    },
-    true
-  );
+  return await request("/users", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
 };
 
-const updateUser = async (id: string, payload: Partial<UserInfo> & { password?: string }) => {
-  return await request(
-    `/users/${id}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify(payload)
-    },
-    true
-  );
+const updateUser = async (
+  id: string,
+  payload: Partial<UserInfo> & { password?: string; roles?: RoleName[]; isActive?: boolean }
+) => {
+  return await request(`/users/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
 };
 
-const deleteUser = async (id: string) => {
-  return await request(`/users/${id}`, { method: "DELETE" }, true);
+const disableUser = async (id: string) => {
+  return await updateUser(id, { isActive: false });
 };
 
 const loadApprovals = async () => {
-  const data = await request("/events/approvals?status=pending", {}, true);
+  const data = await request("/events/approvals?status=pending");
   approvals.value = data.items as EventApproval[];
 };
 
 const approveEventChange = async (id: string) => {
-  return await request(`/events/approvals/${id}/approve`, { method: "POST", body: "{}" }, true);
+  return await request(`/events/approvals/${id}/approve`, { method: "POST", body: "{}" });
 };
 
 const rejectEventChange = async (id: string) => {
-  return await request(`/events/approvals/${id}/reject`, { method: "POST", body: "{}" }, true);
+  return await request(`/events/approvals/${id}/reject`, { method: "POST", body: "{}" });
 };
 
-const canManageAccounts = computed(
-  () => user.value?.role === "super_admin" || user.value?.role === "account_admin"
-);
-const canManageContent = computed(
-  () => user.value?.role === "super_admin" || user.value?.role === "content_admin"
-);
+const loadSmtpSettings = async () => {
+  const data = await request("/settings/smtp");
+  smtpSettings.value = data.settings as SmtpSettings;
+};
+
+const updateSmtpSettings = async (payload: {
+  enabled: boolean;
+  host?: string;
+  port?: number;
+  secure?: boolean;
+  username?: string;
+  password?: string;
+  fromAddress?: string;
+}) => {
+  const data = await request("/settings/smtp", {
+    method: "PUT",
+    body: JSON.stringify(payload)
+  });
+  smtpSettings.value = data.settings as SmtpSettings;
+  return data as { settings: SmtpSettings };
+};
+
+const hasRole = (role: RoleName) => user.value?.roles?.includes(role) ?? false;
+
+const canManageAccounts = computed(() => hasRole("SUPER_ADMIN") || hasRole("ADMIN"));
+const canManageContent = computed(() => hasRole("SUPER_ADMIN") || hasRole("ADMIN"));
 const canWriteContent = computed(() =>
-  ["super_admin", "content_admin", "content_editor"].includes(user.value?.role ?? "")
+  hasRole("SUPER_ADMIN") || hasRole("ADMIN") || hasRole("EDITOR")
 );
-const canApproveContent = computed(
-  () => user.value?.role === "super_admin" || user.value?.role === "content_admin"
+const canApproveContent = computed(() => hasRole("SUPER_ADMIN") || hasRole("ADMIN"));
+const canManageSystem = computed(() => hasRole("SUPER_ADMIN"));
+const isContentEditorRole = computed(
+  () => hasRole("EDITOR") && !hasRole("ADMIN") && !hasRole("SUPER_ADMIN")
 );
-const isContentEditorRole = computed(() => user.value?.role === "content_editor");
 
 const formatYear = (year: number) => {
   if (year <= 0) {
@@ -467,7 +646,8 @@ const formatDateTime = (value: string) => {
   return new Date(value).toLocaleString();
 };
 
-const formatRole = (role: UserRole) => {
+const formatRole = (roles: RoleName[] | RoleName) => {
+  const role = Array.isArray(roles) ? pickPrimaryRole(roles) : roles;
   return roleLabels[role] || role;
 };
 
@@ -500,8 +680,8 @@ export const useAppStore = () => {
   return {
     apiBase,
     status,
-    token,
     user,
+    profileLoaded,
     tags,
     categories,
     events,
@@ -509,11 +689,19 @@ export const useAppStore = () => {
     stats,
     users,
     approvals,
+    smtpSettings,
     filters,
     loadStatus,
     loadProfile,
+    ensureProfileLoaded,
     login,
     logout,
+    register,
+    verifyEmail,
+    forgotPassword,
+    resetPassword,
+    changePassword,
+    updateProfile,
     loadTags,
     loadCategories,
     loadEvents,
@@ -535,14 +723,17 @@ export const useAppStore = () => {
     loadUsers,
     createUser,
     updateUser,
-    deleteUser,
+    disableUser,
     loadApprovals,
     approveEventChange,
     rejectEventChange,
+    loadSmtpSettings,
+    updateSmtpSettings,
     canManageAccounts,
     canManageContent,
     canWriteContent,
     canApproveContent,
+    canManageSystem,
     isContentEditorRole,
     formatYear,
     formatEventTime,
@@ -554,3 +745,4 @@ export const useAppStore = () => {
     approvalTitle
   };
 };
+

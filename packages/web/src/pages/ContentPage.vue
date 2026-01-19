@@ -251,6 +251,14 @@
                     >
                       <a-button type="primary" :loading="importLoading">选择 JSON 文件并导入</a-button>
                     </a-upload>
+                    <a-button
+                      type="link"
+                      href="/examples/events-import-sample.json"
+                      target="_blank"
+                      style="padding-left: 0;"
+                    >
+                      下载导入示例文件
+                    </a-button>
                     <div v-if="importFileName" style="margin-top: 8px; color: #999;">
                       已选择：{{ importFileName }}
                     </div>
@@ -319,7 +327,7 @@
           </div>
           <a-alert
             message="权限说明"
-            description="账号管理员负责管理账户，内容管理员负责审批与内容管理。"
+            description="管理员负责账号与内容管理，编辑负责内容编辑。"
             type="info"
             show-icon
             style="margin-bottom: 16px"
@@ -331,8 +339,8 @@
           <div v-else>
             <a-card title="新增账号" size="small" style="margin-bottom: 24px">
                <a-form layout="inline" :model="userForm" @finish="handleCreateUser">
-                  <a-form-item name="name">
-                    <a-input v-model:value="userForm.name" placeholder="用户名" />
+                  <a-form-item name="displayName">
+                    <a-input v-model:value="userForm.displayName" placeholder="显示名" />
                   </a-form-item>
                   <a-form-item name="email">
                     <a-input v-model:value="userForm.email" placeholder="邮箱" />
@@ -342,9 +350,10 @@
                   </a-form-item>
                   <a-form-item name="role">
                     <a-select v-model:value="userForm.role" style="width: 120px">
-                      <a-select-option value="account_admin">账号管理员</a-select-option>
-                      <a-select-option value="content_admin">内容管理员</a-select-option>
-                      <a-select-option value="content_editor">内容编辑</a-select-option>
+                      <a-select-option value="ADMIN">管理员</a-select-option>
+                      <a-select-option value="EDITOR">内容编辑</a-select-option>
+                      <a-select-option value="USER">普通用户</a-select-option>
+                      <a-select-option v-if="isCurrentSuper" value="SUPER_ADMIN">超级管理员</a-select-option>
                     </a-select>
                   </a-form-item>
                   <a-form-item>
@@ -357,12 +366,17 @@
             <a-table :dataSource="users" :columns="userColumns" rowKey="id">
                 <template #bodyCell="{ column, record }">
                   <template v-if="column.key === 'role'">
-                    <a-tag>{{ formatRole(record.role) }}</a-tag>
+                    <a-tag>{{ formatRole(record.roles) }}</a-tag>
+                  </template>
+                  <template v-if="column.key === 'status'">
+                    <a-tag :color="record.isActive ? 'green' : 'red'">
+                      {{ record.isActive ? '启用' : '禁用' }}
+                    </a-tag>
                   </template>
                   <template v-if="column.key === 'action'">
                     <a-space>
                        <a-button 
-                         v-if="record.role !== 'super_admin' || user?.role === 'super_admin'" 
+                         v-if="!isSuperAdmin(record) || isCurrentSuper" 
                          type="link" 
                          size="small"
                          @click="startEditUser(record)"
@@ -372,23 +386,93 @@
                        <span v-else class="text-muted" style="font-size: 12px; color: #ccc;">不可编辑</span>
                        
                        <a-popconfirm 
-                         title="确定要删除该账号吗？" 
-                         :disabled="record.role === 'super_admin' || record.id === user?.id"
-                         @confirm="deleteUserItem(record.id)"
+                         title="确定要禁用该账号吗？" 
+                         :disabled="isSuperAdmin(record) || record.id === user?.id"
+                         @confirm="disableUserItem(record.id)"
                        >
                          <a-button 
                            type="link" 
                            danger 
                            size="small" 
-                           :disabled="record.role === 'super_admin' || record.id === user?.id"
+                           :disabled="isSuperAdmin(record) || record.id === user?.id"
                          >
-                           删除
+                           禁用
                          </a-button>
                        </a-popconfirm>
                     </a-space>
                   </template>
                 </template>
             </a-table>
+          </div>
+        </a-tab-pane>
+
+        <a-tab-pane v-if="canManageSystem" key="settings" tab="系统设置">
+          <div v-if="!canManageSystem">
+            <a-alert message="当前账号没有系统设置权限" type="warning" />
+          </div>
+          <div v-else>
+            <a-card title="SMTP 邮件设置" :bordered="false">
+              <a-alert
+                message="用于发送验证邮件和找回密码邮件"
+                type="info"
+                show-icon
+                style="margin-bottom: 16px"
+              />
+              <a-form layout="vertical">
+                <a-form-item label="启用邮件发送">
+                  <a-switch v-model:checked="smtpForm.enabled" />
+                </a-form-item>
+                <a-form-item label="服务器地址" required>
+                  <a-input
+                    v-model:value="smtpForm.host"
+                    :disabled="!smtpForm.enabled"
+                    placeholder="例如 smtp.example.com"
+                  />
+                </a-form-item>
+                <a-form-item label="端口" required>
+                  <a-input-number
+                    v-model:value="smtpForm.port"
+                    :disabled="!smtpForm.enabled"
+                    :min="1"
+                    :max="65535"
+                    style="width: 100%"
+                  />
+                </a-form-item>
+                <a-form-item label="使用 SSL/TLS">
+                  <a-switch v-model:checked="smtpForm.secure" :disabled="!smtpForm.enabled" />
+                </a-form-item>
+                <a-form-item label="账号">
+                  <a-input v-model:value="smtpForm.username" :disabled="!smtpForm.enabled" />
+                </a-form-item>
+                <a-form-item label="密码">
+                  <a-input-password
+                    v-model:value="smtpForm.password"
+                    :disabled="!smtpForm.enabled"
+                    placeholder="留空表示不修改"
+                  />
+                </a-form-item>
+                <a-form-item label="发件人地址">
+                  <a-input
+                    v-model:value="smtpForm.fromAddress"
+                    :disabled="!smtpForm.enabled"
+                    placeholder="例如 no-reply@example.com"
+                  />
+                </a-form-item>
+              </a-form>
+
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <a-button type="primary" :loading="smtpSaving" @click="handleSaveSmtp">保存设置</a-button>
+                <span v-if="smtpNotice" style="color: #52c41a;">{{ smtpNotice }}</span>
+              </div>
+
+              <a-alert v-if="smtpError" :message="smtpError" type="error" show-icon style="margin-top: 12px" />
+              <div v-if="smtpSettings?.updatedAt" style="margin-top: 8px; color: #999;">
+                最后更新：{{ formatDateTime(smtpSettings.updatedAt) }}
+              </div>
+              <div style="margin-top: 4px; color: #999;">
+                密码状态：{{ smtpSettings?.hasPassword ? "已保存" : "未保存" }}
+              </div>
+            </a-card>
           </div>
         </a-tab-pane>
       </a-tabs>
@@ -523,8 +607,8 @@
       @ok="handleSaveUser"
     >
       <a-form layout="vertical">
-        <a-form-item label="用户名" required>
-          <a-input v-model:value="userEdit.name" />
+        <a-form-item label="显示名" required>
+          <a-input v-model:value="userEdit.displayName" />
         </a-form-item>
         <a-form-item label="邮箱" required>
           <a-input v-model:value="userEdit.email" />
@@ -533,11 +617,11 @@
           <a-input-password v-model:value="userEdit.password" placeholder="留空表示不修改" />
         </a-form-item>
         <a-form-item label="角色">
-           <a-select v-model:value="userEdit.role" :disabled="userEdit.role === 'super_admin'">
-              <a-select-option value="account_admin">账号管理员</a-select-option>
-              <a-select-option value="content_admin">内容管理员</a-select-option>
-              <a-select-option value="content_editor">内容编辑</a-select-option>
-              <a-select-option v-if="userEdit.role === 'super_admin'" value="super_admin">超级管理员</a-select-option>
+           <a-select v-model:value="userEdit.role" :disabled="userEdit.role === 'SUPER_ADMIN' && !isCurrentSuper">
+              <a-select-option value="ADMIN">管理员</a-select-option>
+              <a-select-option value="EDITOR">内容编辑</a-select-option>
+              <a-select-option value="USER">普通用户</a-select-option>
+              <a-select-option v-if="isCurrentSuper" value="SUPER_ADMIN">超级管理员</a-select-option>
            </a-select>
         </a-form-item>
         <div v-if="userError">
@@ -552,7 +636,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useAppStore } from "../store/appStore";
-import type { EventItem, EventTime, UserRole } from "../store/appStore";
+import type { EventItem, EventTime, RoleName, UserInfo } from "../store/appStore";
 import { PlusOutlined } from '@ant-design/icons-vue';
 
 const {
@@ -564,6 +648,7 @@ const {
   stats,
   approvals,
   users,
+  smtpSettings,
   loadTags,
   loadCategories,
   loadEvents,
@@ -587,11 +672,12 @@ const {
   loadUsers,
   createUser,
   updateUser,
-  deleteUser,
+  disableUser,
   canManageAccounts,
   canManageContent,
   canWriteContent,
   canApproveContent,
+  canManageSystem,
   isContentEditorRole,
   formatEventTime,
   formatDateTime,
@@ -599,10 +685,12 @@ const {
   mapTags,
   mapCategories,
   approvalActionLabel,
-  approvalTitle
+  approvalTitle,
+  loadSmtpSettings,
+  updateSmtpSettings
 } = useAppStore();
 
-type TabKey = "events" | "taxonomy" | "import" | "stats" | "users";
+type TabKey = "events" | "taxonomy" | "import" | "stats" | "users" | "settings";
 const tab = ref<TabKey>("events");
 const loading = ref(false);
 const formError = ref("");
@@ -610,6 +698,9 @@ const formNotice = ref("");
 const approvalError = ref("");
 const importError = ref("");
 const userError = ref("");
+const smtpError = ref("");
+const smtpNotice = ref("");
+const smtpSaving = ref(false);
 
 const availableTabs = computed<TabKey[]>(() => {
   const list: TabKey[] = [];
@@ -624,6 +715,9 @@ const availableTabs = computed<TabKey[]>(() => {
   }
   if (canManageAccounts.value) {
     list.push("users");
+  }
+  if (canManageSystem.value) {
+    list.push("settings");
   }
   return list;
 });
@@ -672,18 +766,45 @@ const importFileName = ref("");
 const importMode = ref<"merge" | "replace">("merge");
 
 const userForm = reactive({
-  name: "",
+  displayName: "",
   email: "",
   password: "",
-  role: "content_editor" as UserRole
+  role: "EDITOR" as RoleName
 });
 const userEdit = reactive({
   id: "",
-  name: "",
+  displayName: "",
   email: "",
   password: "",
-  role: "content_editor" as UserRole
+  role: "EDITOR" as RoleName
 });
+
+const smtpForm = reactive({
+  enabled: false,
+  host: "",
+  port: 587,
+  secure: false,
+  username: "",
+  password: "",
+  fromAddress: ""
+});
+
+const isCurrentSuper = computed(() => user.value?.roles?.includes("SUPER_ADMIN") ?? false);
+
+const resolvePrimaryRole = (roles: RoleName[]) => {
+  if (roles.includes("SUPER_ADMIN")) {
+    return "SUPER_ADMIN";
+  }
+  if (roles.includes("ADMIN")) {
+    return "ADMIN";
+  }
+  if (roles.includes("EDITOR")) {
+    return "EDITOR";
+  }
+  return "USER";
+};
+
+const isSuperAdmin = (item: UserInfo) => item.roles.includes("SUPER_ADMIN");
 
 const isEditing = computed(() => eventForm.id !== "");
 
@@ -704,9 +825,10 @@ const getEventTagLabels = (event: EventItem) => {
 };
 
 const userColumns = [
-  { title: '用户名', dataIndex: 'name', key: 'name' },
+  { title: '显示名', dataIndex: 'displayName', key: 'displayName' },
   { title: '邮箱', dataIndex: 'email', key: 'email' },
   { title: '角色', key: 'role' },
+  { title: '状态', key: 'status' },
   { title: '操作', key: 'action' },
 ];
 
@@ -1087,33 +1209,33 @@ const refreshUsers = async () => {
 };
 
 const resetUserForm = () => {
-  userForm.name = "";
+  userForm.displayName = "";
   userForm.email = "";
   userForm.password = "";
-  userForm.role = "content_editor";
+  userForm.role = "EDITOR";
 };
 
 const resetUserEdit = () => {
   userEdit.id = "";
-  userEdit.name = "";
+  userEdit.displayName = "";
   userEdit.email = "";
   userEdit.password = "";
-  userEdit.role = "content_editor";
+  userEdit.role = "EDITOR";
   userModalVisible.value = false;
 };
 
 const handleCreateUser = async () => {
   userError.value = "";
-  if (!userForm.name.trim() || !userForm.email.trim() || !userForm.password.trim()) {
-    userError.value = "请完整填写用户名、邮箱和密码";
+  if (!userForm.displayName.trim() || !userForm.email.trim() || !userForm.password.trim()) {
+    userError.value = "请完整填写显示名、邮箱和密码";
     return;
   }
   try {
     await createUser({
-      name: userForm.name.trim(),
+      displayName: userForm.displayName.trim(),
       email: userForm.email.trim(),
       password: userForm.password,
-      role: userForm.role
+      roles: [userForm.role]
     });
     resetUserForm();
     await refreshUsers();
@@ -1122,11 +1244,11 @@ const handleCreateUser = async () => {
   }
 };
 
-const startEditUser = (item: { id: string; name: string; email: string; role: UserRole }) => {
+const startEditUser = (item: UserInfo) => {
   userEdit.id = item.id;
-  userEdit.name = item.name;
+  userEdit.displayName = item.displayName;
   userEdit.email = item.email;
-  userEdit.role = item.role;
+  userEdit.role = resolvePrimaryRole(item.roles);
   userEdit.password = "";
   userModalVisible.value = true;
 };
@@ -1136,18 +1258,16 @@ const handleSaveUser = async () => {
   if (!userEdit.id) {
     return;
   }
-  if (!userEdit.name.trim() || !userEdit.email.trim()) {
-    userError.value = "请完整填写用户名和邮箱";
+  if (!userEdit.displayName.trim() || !userEdit.email.trim()) {
+    userError.value = "请完整填写显示名和邮箱";
     return;
   }
   try {
-    const payload: Record<string, string> = {
-      name: userEdit.name.trim(),
-      email: userEdit.email.trim()
+    const payload: Record<string, string | string[] | boolean> = {
+      displayName: userEdit.displayName.trim(),
+      email: userEdit.email.trim(),
+      roles: [userEdit.role]
     };
-    if (userEdit.role !== "super_admin") {
-      payload.role = userEdit.role;
-    }
     if (userEdit.password.trim()) {
       payload.password = userEdit.password;
     }
@@ -1159,13 +1279,78 @@ const handleSaveUser = async () => {
   }
 };
 
-const deleteUserItem = async (id: string) => {
+const disableUserItem = async (id: string) => {
   userError.value = "";
   try {
-    await deleteUser(id);
+    await disableUser(id);
     await refreshUsers();
   } catch (error) {
-    userError.value = error instanceof Error ? error.message : "删除用户失败";
+    userError.value = error instanceof Error ? error.message : "禁用用户失败";
+  }
+};
+
+const applySmtpSettings = () => {
+  if (!smtpSettings.value) {
+    return;
+  }
+  smtpForm.enabled = smtpSettings.value.enabled;
+  smtpForm.host = smtpSettings.value.host || "";
+  smtpForm.port = smtpSettings.value.port || 587;
+  smtpForm.secure = smtpSettings.value.secure;
+  smtpForm.username = smtpSettings.value.username || "";
+  smtpForm.fromAddress = smtpSettings.value.fromAddress || "";
+  smtpForm.password = "";
+};
+
+const refreshSmtpSettings = async () => {
+  smtpError.value = "";
+  smtpNotice.value = "";
+  if (!canManageSystem.value) {
+    return;
+  }
+  try {
+    await loadSmtpSettings();
+    applySmtpSettings();
+  } catch (error) {
+    smtpError.value = error instanceof Error ? error.message : "SMTP 设置加载失败";
+  }
+};
+
+const handleSaveSmtp = async () => {
+  smtpError.value = "";
+  smtpNotice.value = "";
+  if (smtpForm.enabled && !smtpForm.host.trim()) {
+    smtpError.value = "请填写服务器地址";
+    return;
+  }
+  if (smtpForm.enabled && (!Number.isInteger(smtpForm.port) || smtpForm.port <= 0)) {
+    smtpError.value = "请填写有效的端口";
+    return;
+  }
+
+  smtpSaving.value = true;
+  try {
+    const payload: Record<string, string | number | boolean> = {
+      enabled: smtpForm.enabled,
+      host: smtpForm.host.trim(),
+      port: smtpForm.port,
+      secure: smtpForm.secure,
+      username: smtpForm.username.trim(),
+      fromAddress: smtpForm.fromAddress.trim()
+    };
+    if (smtpForm.password.trim()) {
+      payload.password = smtpForm.password;
+    }
+    const data = await updateSmtpSettings(payload);
+    smtpNotice.value = "已保存";
+    smtpForm.password = "";
+    if (data?.settings) {
+      applySmtpSettings();
+    }
+  } catch (error) {
+    smtpError.value = error instanceof Error ? error.message : "保存失败";
+  } finally {
+    smtpSaving.value = false;
   }
 };
 
@@ -1175,6 +1360,7 @@ const refreshAll = async () => {
   }
   await Promise.all([loadTags(), loadCategories(), refreshEvents(), loadStats()]);
   await refreshUsers();
+  await refreshSmtpSettings();
 };
 
 watch(availableTabs, () => {
@@ -1206,6 +1392,9 @@ watch(tab, async (value) => {
   }
   if (value === "stats") {
     await loadStats();
+  }
+  if (value === "settings") {
+    await refreshSmtpSettings();
   }
 });
 </script>

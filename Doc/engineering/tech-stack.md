@@ -1,20 +1,21 @@
----
+﻿---
 title: 技术栈（当前与目标）
 category: engineering
 status: current
 version: v0.1
-last_updated: 2026-01-17
+last_updated: 2026-01-19
 ---
 
 # 技术栈（当前与目标）
 
-本文件用于记录“当前实现”与“目标方案”，并说明它们之间的关系，避免读者把计划当成已实现。
+本文件用于记录“当前实现”与“目标方案”，并说明它们之间的关系，避免把计划当成已实现。
 
 ## 当前实现（current）
 
 - 前端：Vue 3 + TypeScript + Vite（packages/web）。
-- 后端：Node.js + TypeScript（packages/server/src/main.ts），当前以轻量 HTTP 服务为主。
-- 存储：JSON 文件（packages/server/data/db.json），说明见 ../data/current-storage.md。
+- 后端：NestJS + TypeScript（packages/server），鉴权使用 Passport + JWT。
+- 邮件：@nestjs-modules/mailer + nodemailer，SMTP 配置由超级管理员在后台设置。
+- 存储：事件相关仍是 JSON 文件（packages/server/data/db.json）；用户与鉴权、SMTP 配置使用 PostgreSQL。
 
 ## 目标方案（planned）
 

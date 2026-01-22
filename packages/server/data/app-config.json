@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "setup": {
+    "completed": true,
+    "completedAt": "2026-01-22T07:44:11.517Z"
+  },
+  "ports": {
+    "backend": 3085,
+    "frontend": 80
+  },
+  "app": {
+    "webOrigin": "http://localhost:80",
+    "appUrl": "http://localhost:80"
+  },
+  "security": {
+    "jwtSecret": "1655984ee9aea839dca13d904e6465f2f49332d68e1168679b94258a7da23cea",
+    "jwtRefreshSecret": "19463479a7c5df7b3379925bd33a7d2cde812311d0f691530b6d45facfbcbddb",
+    "jwtExpiresIn": "15m",
+    "jwtRefreshExpiresIn": "7d",
+    "jwtIssuer": "chronoatlas",
+    "jwtAudience": "chronoatlas-web",
+    "csrfCookieName": "csrf_token"
+  },
+  "database": {
+    "host": "115.190.61.86",
+    "port": 55432,
+    "user": "chronoatlas_user",
+    "password": "Xy19931004@",
+    "database": "chronoatlas_db",
+    "ssl": false,
+    "schema": "public",
+    "table": "app_data"
+  },
+  "bootstrapAdmin": {
+    "email": "admin@chronoatlas.local",
+    "password": "admin123",
+    "name": "管理员"
+  },
+  "rateLimit": {
+    "ttl": 60,
+    "limit": 30
+  },
+  "mailDev": {
+    "output": "log",
+    "dir": "mail_outbox"
+  },
+  "emailPolicy": {
+    "verifyTtlMinutes": 1440,
+    "resetTtlMinutes": 30
+  }
+}

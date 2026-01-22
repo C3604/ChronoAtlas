@@ -1,55 +1,46 @@
-import { defineConfig, loadEnv } from "vite";
+﻿import fs from "fs";
+import path from "path";
+import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import Components from "unplugin-vue-components/vite";
 import { AntDesignVueResolver } from "unplugin-vue-components/resolvers";
 
-const parsePort = (value?: string): number | undefined => {
-  if (!value) {
-    return undefined;
-  }
+const configPath = path.resolve(__dirname, "..", "server", "data", "app-config.json");
 
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return undefined;
-  }
-
-  const numeric = Number(trimmed);
-  if (Number.isInteger(numeric) && numeric > 0) {
-    return numeric;
-  }
-
+const readAppConfig = () => {
   try {
-    const url = new URL(trimmed);
-    if (url.port) {
-      return Number(url.port);
+    if (!fs.existsSync(configPath)) {
+      return null;
     }
-  } catch {}
-
-  const match = trimmed.match(/:(\d{2,5})/);
-  return match ? Number(match[1]) : undefined;
+    const raw = fs.readFileSync(configPath, "utf-8");
+    if (!raw.trim()) {
+      return null;
+    }
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 };
 
-const resolveFrontendPort = (env: Record<string, string>): number | undefined => {
-  const candidates = [
-    env.VITE_DEV_SERVER_PORT,
-    env.WEB_ORIGIN,
-    env.APP_URL,
-  ];
-
-  for (const candidate of candidates) {
-    const port = parsePort(candidate);
-    if (port) {
-      return port;
+const toNumber = (value: unknown, fallback: number) => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.round(value);
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value.trim());
+    if (Number.isFinite(parsed)) {
+      return Math.round(parsed);
     }
   }
-
-  return undefined;
+  return fallback;
 };
 
-export default defineConfig(({ mode }) => {
-  const envDir = "../../";
-  const env = loadEnv(mode, envDir, "");
-  const port = resolveFrontendPort(env) ?? 5173;
+export default defineConfig(() => {
+  const appConfig = readAppConfig();
+  const backendPort = toNumber(appConfig?.ports?.backend, 3000);
+  const frontendPort = toNumber(appConfig?.ports?.frontend, 5173);
+  const apiBase = `http://localhost:${backendPort}`;
+  const csrfCookieName = appConfig?.security?.csrfCookieName || "csrf_token";
 
   return {
     plugins: [
@@ -57,17 +48,19 @@ export default defineConfig(({ mode }) => {
       Components({
         resolvers: [
           AntDesignVueResolver({
-            importStyle: false, // css in js
-          }),
-        ],
-      }),
+            importStyle: false
+          })
+        ]
+      })
     ],
-    envDir,
-    server: { port, host: "127.0.0.1" },
+    server: { port: frontendPort, host: "localhost" },
+    define: {
+      __APP_CONFIG__: JSON.stringify({ apiBase, csrfCookieName })
+    },
     // @ts-ignore
     test: {
       globals: true,
-      environment: "jsdom",
-    },
+      environment: "jsdom"
+    }
   };
 });

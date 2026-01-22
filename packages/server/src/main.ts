@@ -2,17 +2,21 @@
 import { ConfigService } from "@nestjs/config";
 import { ValidationPipe } from "@nestjs/common";
 import cookieParser from "cookie-parser";
-import { AppModule } from "./app.module";
 import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
 import { ResponseInterceptor } from "./common/interceptors/response.interceptor";
 import { TraceIdMiddleware } from "./common/middleware/trace-id.middleware";
 import { CsrfMiddleware } from "./common/middleware/csrf.middleware";
+import { isSetupCompleted, readAppConfig } from "./config/app-config";
 
 const bootstrap = async () => {
-  const app = await NestFactory.create(AppModule, { cors: false });
+  const configSnapshot = readAppConfig();
+  const rootModule = isSetupCompleted(configSnapshot)
+    ? (await import("./app.module")).AppModule
+    : (await import("./setup/setup-app.module")).SetupAppModule;
+  const app = await NestFactory.create(rootModule, { cors: false });
   const config = app.get(ConfigService);
 
-  const origin = config.get<string>("WEB_ORIGIN") ?? "http://localhost:5173";
+  const origin = config.get<string>("WEB_ORIGIN") || config.get<string>("APP_URL") || "";
   app.enableCors({
     origin,
     credentials: true,
@@ -34,7 +38,7 @@ const bootstrap = async () => {
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new ResponseInterceptor());
 
-  const port = Number(config.get("PORT") ?? 3000);
+  const port = Number(config.get("PORT"));
   await app.listen(port);
   console.log(`服务已启动：http://localhost:${port}`);
 };

@@ -334,7 +334,8 @@ export class AuthService {
     const tokenHash = hashToken(token);
     const expiresAt = new Date(Date.now() + this.getEmailVerifyTtlMs());
     await this.emailTokenRepo.save(this.emailTokenRepo.create({ user, tokenHash, expiresAt }));
-    const appUrl = this.config.get<string>("APP_URL") ?? "http://localhost:5173";
+    const appUrl =
+      this.config.get<string>("APP_URL") ?? this.config.get<string>("WEB_ORIGIN") ?? "";
     const link = `${appUrl.replace(/\/$/, "")}/verify-email?token=${token}`;
     const text = `您好，欢迎使用 ChronoAtlas。\n\n请点击以下链接完成邮箱验证：\n${link}\n\n链接有效期有限，请尽快完成验证。`;
     await this.mailService.sendTextMail(user.email, "ChronoAtlas 邮箱验证", text);
@@ -349,7 +350,8 @@ export class AuthService {
     const tokenHash = hashToken(token);
     const expiresAt = new Date(Date.now() + this.getResetPasswordTtlMs());
     await this.resetTokenRepo.save(this.resetTokenRepo.create({ user, tokenHash, expiresAt }));
-    const appUrl = this.config.get<string>("APP_URL") ?? "http://localhost:5173";
+    const appUrl =
+      this.config.get<string>("APP_URL") ?? this.config.get<string>("WEB_ORIGIN") ?? "";
     const link = `${appUrl.replace(/\/$/, "")}/reset-password?token=${token}`;
     const text = `您正在重置 ChronoAtlas 的账号密码。\n\n请点击以下链接设置新密码：\n${link}\n\n如果不是您本人操作，请忽略此邮件。`;
     await this.mailService.sendTextMail(user.email, "ChronoAtlas 重置密码", text);

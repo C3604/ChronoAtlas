@@ -3,7 +3,11 @@ info:
   title: ChronoAtlas API
   version: 0.1.0
 servers:
-  - url: http://localhost:3000
+  - url: http://localhost:{port}
+    variables:
+      port:
+        default: "3000"
+        description: "后端端口（来自 app-config.json 的 ports.backend）"
 paths:
   /health:
     get:

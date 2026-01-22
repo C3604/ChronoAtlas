@@ -22,3 +22,7 @@ last_updated: 2026-01-17
 
 - API 规格与合同按版本存放在 `Doc/api/v{version}/`。
 - 同一主题若存在“已实现（current）/计划（planned）”两种状态，使用文档元数据 `status` 明确标注。
+
+
+## 新增文档
+- 初始化配置与端口：[engineering/setup-and-config.md](engineering/setup-and-config.md)

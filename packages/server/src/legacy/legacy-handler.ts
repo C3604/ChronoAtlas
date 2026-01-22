@@ -2,45 +2,27 @@
 import path from "path";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
-import dotenv from "dotenv";
 import { Pool } from "pg";
-
+import { readRuntimeConfig } from "../config/app-config";
 import { RoleName } from "../common/roles.enum";
 import { ACCESS_TOKEN_COOKIE } from "../auth/auth.constants";
 const bodySizeLimit = 1_000_000;
 
-const resolveEnvPath = () => {
-  const cwd = process.cwd();
-  const direct = path.resolve(cwd, ".env");
-  if (fs.existsSync(direct)) {
-    return direct;
+const runtimeConfig = readRuntimeConfig();
+const frontendBaseUrl = String(
+  runtimeConfig.APP_URL || runtimeConfig.WEB_ORIGIN || ""
+)
+  .trim()
+  .replace(/\/$/, "");
+
+const readRequiredConfig = (key: keyof typeof runtimeConfig) => {
+  const value = runtimeConfig[key];
+  const text = value == null ? "" : String(value).trim();
+  if (!text) {
+    throw new Error(`缺少配置 ${key}`);
   }
-  const parent = path.resolve(cwd, "..", ".env");
-  if (fs.existsSync(parent)) {
-    return parent;
-  }
-  const grandParent = path.resolve(cwd, "..", "..", ".env");
-  if (fs.existsSync(grandParent)) {
-    return grandParent;
-  }
-  return undefined;
+  return text;
 };
-
-const envPath = resolveEnvPath();
-if (envPath) {
-  dotenv.config({ path: envPath });
-} else {
-  dotenv.config();
-}
-
-const readRequiredEnv = (key: string) => {
-  const value = process.env[key];
-  if (!value || value.trim() === "") {
-    throw new Error(`缺少环境变量 ${key}`);
-  }
-  return value.trim();
-};
-
 const normalizeIdentifier = (value: string, label: string) => {
   const trimmed = value.trim();
   if (!/^[a-zA-Z0-9_]+$/.test(trimmed)) {
@@ -49,24 +31,24 @@ const normalizeIdentifier = (value: string, label: string) => {
   return trimmed.toLowerCase();
 };
 
-const pgPortRaw = process.env.PG_PORT ?? "5432";
+const pgPortRaw = String(runtimeConfig.PG_PORT ?? "5432");
 const pgPort = Number(pgPortRaw);
 if (!Number.isInteger(pgPort)) {
   throw new Error("PG_PORT 必须是数字");
 }
 
-const pgSslEnabled = (process.env.PG_SSL ?? "").toLowerCase() === "true";
+const pgSslEnabled = String(runtimeConfig.PG_SSL ?? "").toLowerCase() === "true";
 const pgSsl = pgSslEnabled ? { rejectUnauthorized: false } : undefined;
-const schemaName = normalizeIdentifier(process.env.PG_SCHEMA ?? "public", "PG_SCHEMA");
-const tableName = normalizeIdentifier(process.env.PG_TABLE ?? "app_data", "PG_TABLE");
+const schemaName = normalizeIdentifier(runtimeConfig.PG_SCHEMA ?? "public", "PG_SCHEMA");
+const tableName = normalizeIdentifier(runtimeConfig.PG_TABLE ?? "app_data", "PG_TABLE");
 const qualifiedAppDataTable = `"${schemaName}"."${tableName}"`;
 
 const pool = new Pool({
-  host: readRequiredEnv("PG_HOST"),
+  host: readRequiredConfig("PG_HOST"),
   port: pgPort,
-  user: readRequiredEnv("PG_USER"),
-  password: readRequiredEnv("PG_PASSWORD"),
-  database: readRequiredEnv("PG_DATABASE"),
+  user: readRequiredConfig("PG_USER"),
+  password: readRequiredConfig("PG_PASSWORD"),
+  database: readRequiredConfig("PG_DATABASE"),
   ssl: pgSsl
 });
 
@@ -994,14 +976,14 @@ const getAuthContext = async (req: any) => {
   if (!token) {
     return null;
   }
-  const secret = process.env.JWT_SECRET;
+  const secret = runtimeConfig.JWT_SECRET;
   if (!secret) {
     return null;
   }
   try {
     const payload = jwt.verify(token, secret, {
-      issuer: process.env.JWT_ISSUER ?? "chronoatlas",
-      audience: process.env.JWT_AUDIENCE ?? "chronoatlas-web"
+      issuer: runtimeConfig.JWT_ISSUER ?? "chronoatlas",
+      audience: runtimeConfig.JWT_AUDIENCE ?? "chronoatlas-web"
     }) as {
       sub?: string;
       email?: string;
@@ -1085,7 +1067,7 @@ export const handleLegacyRequest = async (req: any, res: any) => {
   const pathParts = requestUrl.pathname.split("/").filter(Boolean);
 
   if (method === "GET" && requestUrl.pathname === "/") {
-    const target = "http://localhost:5173";
+    const target = frontendBaseUrl || "/";
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     res.end(`<!doctype html>
 <html lang="zh-CN">
@@ -1795,6 +1777,7 @@ export const handleLegacyRequest = async (req: any, res: any) => {
 
   sendError(res, 404, "NOT_FOUND", "接口不存在");
 };
+
 
 
 

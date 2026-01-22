@@ -45,3 +45,8 @@ last_updated: 2026-01-17
 
 - Markdown 文件名使用小写+短横线（kebab-case）。
 - API 文档按版本放入 `Doc/api/v{version}/`，并通过 `status/version` 元数据标注状态。
+
+
+## 补充：初始化配置
+- 新增文档：`Doc/engineering/setup-and-config.md`
+- 运行配置：`packages/server/data/app-config.json`（不再使用 .env）

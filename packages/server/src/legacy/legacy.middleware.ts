@@ -9,7 +9,12 @@ export class LegacyMiddleware implements NestMiddleware {
     if (req.method === "OPTIONS") {
       return next();
     }
-    if (path.startsWith("/auth") || path.startsWith("/users") || path.startsWith("/settings")) {
+    if (
+      path.startsWith("/auth") ||
+      path.startsWith("/users") ||
+      path.startsWith("/settings") ||
+      path.startsWith("/setup")
+    ) {
       return next();
     }
     try {

@@ -3,38 +3,21 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { MailerModule } from "@nestjs-modules/mailer";
-import fs from "fs";
-import path from "path";
-import { envValidationSchema } from "./config/env.validation";
+import { readRuntimeConfig } from "./config/app-config";
 import { AuthModule } from "./auth/auth.module";
 import { UsersModule } from "./users/users.module";
 import { LegacyModule } from "./legacy/legacy.module";
 import { MailModule } from "./mail/mail.module";
 import { SettingsModule } from "./settings/settings.module";
-
-const resolveEnvPath = () => {
-  const cwd = process.cwd();
-  const direct = path.resolve(cwd, ".env");
-  if (fs.existsSync(direct)) {
-    return direct;
-  }
-  const parent = path.resolve(cwd, "..", ".env");
-  if (fs.existsSync(parent)) {
-    return parent;
-  }
-  const grandParent = path.resolve(cwd, "..", "..", ".env");
-  if (fs.existsSync(grandParent)) {
-    return grandParent;
-  }
-  return undefined;
-};
+import { SetupModule } from "./setup/setup.module";
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: resolveEnvPath(),
-      validationSchema: envValidationSchema
+      ignoreEnvFile: true,
+      ignoreEnvVars: true,
+      load: [() => readRuntimeConfig()]
     }),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
@@ -73,6 +56,7 @@ const resolveEnvPath = () => {
       defaults: { from: "no-reply@chronoatlas.local" },
       preview: false
     }),
+    SetupModule,
     SettingsModule,
     MailModule,
     AuthModule,

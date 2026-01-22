@@ -8,7 +8,9 @@ const safePaths = new Set([
   "/auth/refresh",
   "/auth/verify-email",
   "/auth/forgot-password",
-  "/auth/reset-password"
+  "/auth/reset-password",
+  "/setup/db/test",
+  "/setup/config"
 ]);
 
 const shouldSkip = (method: string, path: string) => {

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import HomePage from "./pages/HomePage.vue";
+import SetupPage from "./pages/SetupPage.vue";
 import LoginPage from "./pages/LoginPage.vue";
 import RegisterPage from "./pages/RegisterPage.vue";
 import VerifyEmailPage from "./pages/VerifyEmailPage.vue";
@@ -11,6 +12,7 @@ import { useAppStore } from "./store/appStore";
 import type { RoleName } from "./store/appStore";
 
 const routes = [
+  { path: "/setup", name: "setup", component: SetupPage },
   { path: "/", name: "home", component: HomePage },
   { path: "/login", name: "login", component: LoginPage },
   { path: "/register", name: "register", component: RegisterPage },
@@ -33,6 +35,18 @@ const router = createRouter({
 
 router.beforeEach(async (to) => {
   const store = useAppStore();
+  if (!store.setup.loaded) {
+    await store.loadSetupStatus();
+  }
+  if (store.setup.required) {
+    if (to.path !== "/setup") {
+      return { path: "/setup" };
+    }
+    return true;
+  }
+  if (to.path === "/setup") {
+    return { path: "/" };
+  }
   await store.ensureProfileLoaded();
   if (to.meta?.requiresAuth && !store.user.value) {
     return { path: "/login", query: { redirect: to.fullPath } };

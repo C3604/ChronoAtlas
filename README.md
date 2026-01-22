@@ -1,14 +1,15 @@
+﻿
 # ChronoAtlas 时序史鉴
 
-ChronoAtlas 是一个以时间线为核心的历史事件管理与展示应用，支持浏览、筛选、管理与导入导出。
+ChronoAtlas 是一款以时间线为核心的历史事件管理与展示应用，支持浏览、筛选、管理与导入导出。
 
 ## 已实现功能
 
-- 事件、标签的增删改查
+- 事件与标签的增删改查
 - 角色权限与用户管理
 - 注册/登录/邮箱验证/重置密码/刷新登录
 - 事件版本记录与恢复
-- JSON 数据导入与导出（导入支持自动创建标签）
+- JSON 数据导入导出（导入支持自动创建标签）
 - 基础统计概览
 - 速率限制保护
 - SMTP 设置管理
@@ -17,40 +18,30 @@ ChronoAtlas 是一个以时间线为核心的历史事件管理与展示应用�
 
 ## 本地运行
 
-1. 确认已安装 Node.js 与 PostgreSQL。
-2. 在数据库中执行 packages/server/migrations/0001-auth.sql 与 packages/server/migrations/0002-smtp-settings.sql。
-3. 配置根目录 .env（见下方环境变量示例）。
-4. 运行根目录的 Run.bat（单窗口启动）。
-   - 后端默认地址：`http://localhost:3000`
-   - 前端默认地址：`http://localhost:5173`
+1. 安装 Node.js 与 PostgreSQL。
+2. 在数据库中执行：`packages/server/migrations/0001-auth.sql` 与 `packages/server/migrations/0002-smtp-settings.sql`。
+3. 运行根目录的 `Run.bat`（单窗口启动）。
+4. 首次启动后访问前端地址的 `/setup` 完成初始化配置（端口由配置文件决定）。
+5. 保存配置后按提示重启后端与前端服务。
 
-## 环境变量
+前后端地址：
+- 以 `packages/server/data/app-config.json` 中的 `ports.backend` 与 `ports.frontend` 为准。
 
-根目录 `.env`：
+## 初始化配置（不再使用 .env）
 
-- `VITE_API_BASE_URL`：前端请求后端的地址，默认 `http://localhost:3000`
-- `WEB_ORIGIN`：前端页面地址（CORS 使用）
-- `APP_URL`：前端访问地址（邮件链接使用）
-- `JWT_SECRET`：访问 token 密钥
-- `JWT_REFRESH_SECRET`：刷新 token 密钥
-- `JWT_EXPIRES_IN`：访问 token 有效期（默认 15m）
-- `JWT_REFRESH_EXPIRES_IN`：刷新 token 有效期（默认 7d）
-- `PG_HOST/PG_PORT/PG_USER/PG_PASSWORD/PG_DATABASE`：数据库连接
-- `PG_SSL`：是否启用 PostgreSQL SSL（默认 false）
-- `PG_SCHEMA`：数据库 schema（默认 public）
-- `RATE_LIMIT_TTL`：速率限制时间窗口（秒，默认 60）
-- `RATE_LIMIT_LIMIT`：速率限制请求数（默认 30）
-- `EMAIL_VERIFY_TTL_MINUTES`：邮箱验证链接有效期（分钟，默认 1440）
-- `PASSWORD_RESET_TTL_MINUTES`：密码重置链接有效期（分钟，默认 30）
-- SMTP 配置：在系统设置页面填写（超级管理员可见）
-- `MAIL_DEV_OUTPUT`：开发环境邮件输出（log/file/off）
-- `MAIL_DEV_DIR`：开发环境邮件输出目录
-- `BOOTSTRAP_ADMIN_EMAIL/BOOTSTRAP_ADMIN_PASSWORD/BOOTSTRAP_ADMIN_NAME`：默认管理员
+配置文件位置：`packages/server/data/app-config.json`。
+
+首次运行会进入初始化页面，主要配置：
+- 运行环境检查（硬件、依赖、版本提示）
+- 数据库连接信息
+- 前后端端口
+
+其余参数（如 JWT 密钥）会自动生成并写入配置文件。
 
 ## 默认管理员
 
 - 数据库为空时会自动创建默认管理员。
-- 默认值：`admin@chronoatlas.local` / `admin123`（可通过环境变量修改）。
+- 默认账号：`admin@chronoatlas.local` / `admin123`。
 
 ## 目录说明
 
@@ -70,6 +61,4 @@ ChronoAtlas 是一个以时间线为核心的历史事件管理与展示应用�
 - 标签：GET/POST `/tags`，PATCH/DELETE `/tags/{id}`
 - 导入导出：POST `/import/events`，GET `/export/events`
 - 系统设置：GET/PUT `/settings/smtp`
-- 其他：GET `/health`，GET `/api/hello`
-
-
+- 其他：GET `/health`

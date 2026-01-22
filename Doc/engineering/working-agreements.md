@@ -82,3 +82,8 @@ last_updated: 2026-01-18
 ## 10. 当前实现补充
 - 已加入登录鉴权与后台管理。
 - 已加入版本记录与导入导出。
+
+
+## 配置约定
+- 不使用 .env，所有运行配置写入 `packages/server/data/app-config.json`。
+- 前后端端口、跨域来源（WEB_ORIGIN）与 APP_URL 由初始化配置页统一生成。

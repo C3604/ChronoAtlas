@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <a-config-provider :theme="themeConfig">
     <a-layout class="app-layout">
       <a-layout-header class="header">
@@ -112,7 +112,7 @@
               <UserOutlined /> 我的信息
             </a-button>
             <a-button block danger @click="handleLogout">
-              <LogoutOutlined /> 退出
+              <LogoutOutlined /> 退出登录
             </a-button>
           </template>
           <template v-else>
@@ -143,7 +143,7 @@ import {
 
 const router = useRouter();
 const route = useRoute();
-const { apiBase, status, user, loadStatus, ensureProfileLoaded, logout, formatRole } = useAppStore();
+const { status, user, setup, loadStatus, loadSetupStatus, ensureProfileLoaded, logout, formatRole } = useAppStore();
 
 // Theme State
 const isDark = ref(localStorage.getItem('theme') === 'dark');
@@ -221,6 +221,10 @@ const handleLogout = async () => {
 
 // Lifecycle
 onMounted(async () => {
+  await loadSetupStatus();
+  if (setup.required) {
+    return;
+  }
   await loadStatus();
   if (!status.ok) {
     const description = status.text || "服务异常";
@@ -228,7 +232,6 @@ onMounted(async () => {
       message: "后端服务异常",
       description
     });
-    console.error(`[后端服务异常] ${description}`, { apiBase });
   }
   await ensureProfileLoaded();
 });
@@ -367,3 +370,7 @@ onMounted(async () => {
   opacity: 0;
 }
 </style>
+
+
+
+

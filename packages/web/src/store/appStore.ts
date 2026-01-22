@@ -1,5 +1,5 @@
 ﻿import { computed, reactive, ref } from "vue";
-
+import { clientConfig } from "../services/clientConfig";
 export type TagItem = { id: string; name: string; parentId?: string | null };
 export type TagMatchMode = "any" | "all";
 
@@ -70,6 +70,15 @@ export type SmtpSettings = {
   updatedAt: string | null;
 };
 
+export type SetupCheckItem = {
+  key: string;
+  label: string;
+  required: string;
+  current: string;
+  ok: boolean;
+  message?: string;
+};
+
 export type EventDraft = {
   title: string;
   summary?: string;
@@ -93,8 +102,8 @@ export type EventApproval = {
   resultEventId?: string;
 };
 
-const apiBase = (import.meta.env.VITE_API_BASE_URL as string) || "http://localhost:3000";
-const csrfCookieName = (import.meta.env.VITE_CSRF_COOKIE_NAME as string) || "csrf_token";
+const apiBase = clientConfig.apiBase;
+const csrfCookieName = clientConfig.csrfCookieName;
 
 const status = reactive({
   ok: false,
@@ -111,6 +120,16 @@ const stats = ref<Stats | null>(null);
 const users = ref<UserInfo[]>([]);
 const approvals = ref<EventApproval[]>([]);
 const smtpSettings = ref<SmtpSettings | null>(null);
+
+const setup = reactive({
+  loaded: false,
+  required: false,
+  checks: [] as SetupCheckItem[],
+  ports: {
+    backendPort: 3000,
+    frontendPort: 5173
+  }
+});
 
 const filters = reactive({
   timeFrom: "" as string | number,
@@ -267,6 +286,60 @@ const loadStatus = async () => {
   }
 };
 
+const loadSetupStatus = async () => {
+  try {
+    const data = await request("/setup/status", {}, { skipRefresh: true });
+    setup.loaded = true;
+    setup.required = Boolean(data?.required);
+    if (data?.ports) {
+      const backendPort = Number(data.ports.backendPort ?? setup.ports.backendPort);
+      const frontendPort = Number(data.ports.frontendPort ?? setup.ports.frontendPort);
+      if (Number.isFinite(backendPort) && backendPort > 0) {
+        setup.ports.backendPort = backendPort;
+      }
+      if (Number.isFinite(frontendPort) && frontendPort > 0) {
+        setup.ports.frontendPort = frontendPort;
+      }
+    }
+    return setup.required;
+  } catch {
+    setup.loaded = true;
+    setup.required = false;
+    return setup.required;
+  }
+};
+
+const loadSetupChecks = async () => {
+  try {
+    const data = await request("/setup/checks", {}, { skipRefresh: true });
+    setup.checks = data?.items ?? [];
+  } catch {
+    setup.checks = [];
+  }
+};
+
+const testDatabaseConnection = async (payload: any) => {
+  return await request(
+    "/setup/db/test",
+    {
+      method: "POST",
+      body: JSON.stringify(payload)
+    },
+    { skipRefresh: true }
+  );
+};
+
+const saveSetupConfig = async (payload: any) => {
+  return await request(
+    "/setup/config",
+    {
+      method: "POST",
+      body: JSON.stringify(payload)
+    },
+    { skipRefresh: true }
+  );
+};
+
 const loadProfile = async () => {
   try {
     const data = await request("/auth/me");
@@ -279,6 +352,10 @@ const loadProfile = async () => {
 };
 
 const ensureProfileLoaded = async () => {
+  if (setup.required) {
+    profileLoaded.value = true;
+    return;
+  }
   if (profileLoaded.value) {
     return;
   }
@@ -650,6 +727,11 @@ export const useAppStore = () => {
     users,
     approvals,
     smtpSettings,
+    setup,
+    loadSetupStatus,
+    loadSetupChecks,
+    testDatabaseConnection,
+    saveSetupConfig,
     filters,
     loadStatus,
     loadProfile,
@@ -700,4 +782,17 @@ export const useAppStore = () => {
     approvalTitle
   };
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
 

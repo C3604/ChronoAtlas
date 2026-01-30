@@ -2,7 +2,7 @@
   <div class="login-container">
     <a-card class="login-card" :bordered="false">
       <div class="login-header">
-        <h2 class="text-gradient-fern">找回密码</h2>
+        <h1 class="text-gradient-fern">找回密码</h1>
         <p class="text-secondary">填写邮箱后发送重置链接</p>
       </div>
 
@@ -13,23 +13,37 @@
         sub-title="如果邮箱存在，将收到重置链接"
       >
         <template #extra>
-          <a-button type="primary" @click="router.push('/login')">返回登录</a-button>
+          <router-link to="/login" custom v-slot="{ navigate, href }">
+            <a-button type="primary" :href="href" @click="navigate">返回登录</a-button>
+          </router-link>
         </template>
       </a-result>
 
-      <a-form v-else layout="vertical" :model="formState" @finish="handleSubmit">
+      <a-form v-else layout="vertical" :model="formState" @finish="handleSubmit" autocomplete="on">
         <a-form-item label="邮箱" name="email" :rules="[{ required: true, message: '请输入邮箱' }]">
-          <a-input v-model:value="formState.email" placeholder="you@example.com" size="large" />
+          <a-input
+            v-model:value="formState.email"
+            placeholder="you@example.com…"
+            size="large"
+            name="email"
+            type="email"
+            inputmode="email"
+            autocomplete="email"
+            autocapitalize="none"
+            spellcheck="false"
+          />
         </a-form-item>
 
-        <a-alert v-if="error" :message="error" type="error" show-icon class="mb-4" />
+        <a-alert v-if="error" :message="error" type="error" show-icon class="mb-4" aria-live="polite" />
 
         <a-button type="primary" html-type="submit" :loading="loading" block size="large">
           发送重置邮件
         </a-button>
 
         <div class="login-links">
-          <a-button type="link" @click="router.push('/login')">返回登录</a-button>
+          <router-link to="/login" custom v-slot="{ navigate, href }">
+            <a-button type="link" :href="href" @click="navigate">返回登录</a-button>
+          </router-link>
         </div>
       </a-form>
     </a-card>
@@ -38,10 +52,8 @@
 
 <script setup lang="ts">
 import { reactive, ref } from "vue";
-import { useRouter } from "vue-router";
 import { useAppStore } from "../store/appStore";
 
-const router = useRouter();
 const { forgotPassword } = useAppStore();
 
 const formState = reactive({
@@ -93,6 +105,7 @@ const handleSubmit = async () => {
   font-size: 24px;
   font-weight: bold;
   margin-bottom: 8px;
+  text-wrap: balance;
 }
 .text-secondary {
   color: var(--color-text-secondary);

@@ -2,7 +2,7 @@
   <div class="login-container">
     <a-card class="login-card" :bordered="false">
       <div class="login-header">
-        <h2 class="text-gradient-fern">重置密码</h2>
+        <h1 class="text-gradient-fern">重置密码</h1>
         <p class="text-secondary">请输入新的密码</p>
       </div>
 
@@ -13,20 +13,34 @@
         sub-title="请使用新密码登录"
       >
         <template #extra>
-          <a-button type="primary" @click="router.push('/login')">去登录</a-button>
+          <router-link to="/login" custom v-slot="{ navigate, href }">
+            <a-button type="primary" :href="href" @click="navigate">去登录</a-button>
+          </router-link>
         </template>
       </a-result>
 
-      <a-form v-else layout="vertical" :model="formState" @finish="handleReset">
+      <a-form v-else layout="vertical" :model="formState" @finish="handleReset" autocomplete="on">
         <a-form-item label="新密码" name="newPassword" :rules="[{ required: true, message: '请输入新密码' }]">
-          <a-input-password v-model:value="formState.newPassword" placeholder="至少 8 位，含大小写和数字" size="large" />
+          <a-input-password
+            v-model:value="formState.newPassword"
+            placeholder="至少 8 位，含大小写和数字…"
+            size="large"
+            name="newPassword"
+            autocomplete="new-password"
+          />
         </a-form-item>
 
         <a-form-item label="确认新密码" name="confirmPassword" :rules="[{ required: true, message: '请再次输入新密码' }]">
-          <a-input-password v-model:value="formState.confirmPassword" placeholder="再次输入新密码" size="large" />
+          <a-input-password
+            v-model:value="formState.confirmPassword"
+            placeholder="再次输入新密码…"
+            size="large"
+            name="confirmPassword"
+            autocomplete="new-password"
+          />
         </a-form-item>
 
-        <a-alert v-if="error" :message="error" type="error" show-icon class="mb-4" />
+        <a-alert v-if="error" :message="error" type="error" show-icon class="mb-4" aria-live="polite" />
 
         <a-button type="primary" html-type="submit" :loading="loading" block size="large">
           更新密码
@@ -38,10 +52,9 @@
 
 <script setup lang="ts">
 import { reactive, ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute } from "vue-router";
 import { useAppStore } from "../store/appStore";
 
-const router = useRouter();
 const route = useRoute();
 const { resetPassword } = useAppStore();
 
@@ -104,6 +117,7 @@ const handleReset = async () => {
   font-size: 24px;
   font-weight: bold;
   margin-bottom: 8px;
+  text-wrap: balance;
 }
 .text-secondary {
   color: var(--color-text-secondary);

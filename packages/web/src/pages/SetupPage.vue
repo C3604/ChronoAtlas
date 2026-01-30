@@ -30,31 +30,58 @@
 
     <a-card class="setup-card" :bordered="false">
       <template #title>2. 配置数据库</template>
-      <a-form layout="vertical">
+      <a-form layout="vertical" autocomplete="off">
         <a-row :gutter="[16, 16]">
           <a-col :xs="24" :md="12">
             <a-form-item label="数据库主机" required>
-              <a-input v-model:value="dbForm.host" placeholder="例如 127.0.0.1" />
+              <a-input
+                v-model:value="dbForm.host"
+                name="dbHost"
+                placeholder="例如 127.0.0.1…"
+                autocomplete="off"
+              />
             </a-form-item>
           </a-col>
           <a-col :xs="24" :md="12">
             <a-form-item label="数据库端口" required>
-              <a-input-number v-model:value="dbForm.port" :min="1" :max="65535" style="width: 100%" />
+              <a-input-number
+                v-model:value="dbForm.port"
+                name="dbPort"
+                :min="1"
+                :max="65535"
+                inputmode="numeric"
+                style="width: 100%"
+              />
             </a-form-item>
           </a-col>
           <a-col :xs="24" :md="12">
             <a-form-item label="用户名" required>
-              <a-input v-model:value="dbForm.user" placeholder="例如 postgres" />
+              <a-input
+                v-model:value="dbForm.user"
+                name="dbUser"
+                placeholder="例如 postgres…"
+                autocomplete="username"
+              />
             </a-form-item>
           </a-col>
           <a-col :xs="24" :md="12">
             <a-form-item label="密码" required>
-              <a-input-password v-model:value="dbForm.password" placeholder="数据库密码" />
+              <a-input-password
+                v-model:value="dbForm.password"
+                name="dbPassword"
+                placeholder="数据库密码…"
+                autocomplete="new-password"
+              />
             </a-form-item>
           </a-col>
           <a-col :xs="24" :md="12">
             <a-form-item label="数据库名称" required>
-              <a-input v-model:value="dbForm.database" placeholder="例如 chronoatlas" />
+              <a-input
+                v-model:value="dbForm.database"
+                name="dbName"
+                placeholder="例如 chronoatlas…"
+                autocomplete="off"
+              />
             </a-form-item>
           </a-col>
           <a-col :xs="24" :md="12">
@@ -68,12 +95,22 @@
         <a-row :gutter="[16, 16]">
           <a-col :xs="24" :md="12">
             <a-form-item label="Schema">
-              <a-input v-model:value="dbForm.schema" placeholder="public" />
+              <a-input
+                v-model:value="dbForm.schema"
+                name="dbSchema"
+                placeholder="public…"
+                autocomplete="off"
+              />
             </a-form-item>
           </a-col>
           <a-col :xs="24" :md="12">
             <a-form-item label="数据表">
-              <a-input v-model:value="dbForm.table" placeholder="app_data" />
+              <a-input
+                v-model:value="dbForm.table"
+                name="dbTable"
+                placeholder="app_data…"
+                autocomplete="off"
+              />
             </a-form-item>
           </a-col>
         </a-row>
@@ -89,16 +126,30 @@
 
     <a-card class="setup-card" :bordered="false">
       <template #title>3. 配置端口</template>
-      <a-form layout="vertical">
+      <a-form layout="vertical" autocomplete="off">
         <a-row :gutter="[16, 16]">
           <a-col :xs="24" :md="12">
             <a-form-item label="后端端口" required>
-              <a-input-number v-model:value="portForm.backendPort" :min="1" :max="65535" style="width: 100%" />
+              <a-input-number
+                v-model:value="portForm.backendPort"
+                name="backendPort"
+                :min="1"
+                :max="65535"
+                inputmode="numeric"
+                style="width: 100%"
+              />
             </a-form-item>
           </a-col>
           <a-col :xs="24" :md="12">
             <a-form-item label="前端端口" required>
-              <a-input-number v-model:value="portForm.frontendPort" :min="1" :max="65535" style="width: 100%" />
+              <a-input-number
+                v-model:value="portForm.frontendPort"
+                name="frontendPort"
+                :min="1"
+                :max="65535"
+                inputmode="numeric"
+                style="width: 100%"
+              />
             </a-form-item>
           </a-col>
         </a-row>
@@ -210,9 +261,8 @@ onMounted(async () => {
 
 <style scoped>
 .setup-page {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 24px;
+  width: 100%;
+  padding: 24px clamp(16px, 3vw, 40px);
   display: flex;
   flex-direction: column;
   gap: 16px;

@@ -196,6 +196,7 @@ const refreshExcluded = new Set([
 ]);
 
 let refreshPromise: Promise<void> | null = null;
+let profilePromise: Promise<void> | null = null;
 
 const refreshSession = async () => {
   if (refreshPromise) {
@@ -359,7 +360,13 @@ const ensureProfileLoaded = async () => {
   if (profileLoaded.value) {
     return;
   }
-  await loadProfile();
+  if (profilePromise) {
+    return profilePromise;
+  }
+  profilePromise = loadProfile().finally(() => {
+    profilePromise = null;
+  });
+  return profilePromise;
 };
 
 const login = async (email: string, password: string) => {

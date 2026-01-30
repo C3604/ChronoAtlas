@@ -2,7 +2,7 @@
   <div class="login-container">
     <a-card class="login-card" :bordered="false">
       <div class="login-header">
-        <h2 class="text-gradient-fern">邮箱验证</h2>
+        <h1 class="text-gradient-fern">邮箱验证</h1>
         <p class="text-secondary">正在确认您的邮箱</p>
       </div>
 
@@ -11,9 +11,12 @@
         status="success"
         title="验证成功"
         sub-title="您可以继续登录使用"
+        aria-live="polite"
       >
         <template #extra>
-          <a-button type="primary" @click="router.push('/login')">去登录</a-button>
+          <router-link to="/login" custom v-slot="{ navigate, href }">
+            <a-button type="primary" :href="href" @click="navigate">去登录</a-button>
+          </router-link>
         </template>
       </a-result>
 
@@ -22,23 +25,25 @@
         status="error"
         title="验证失败"
         :sub-title="message"
+        aria-live="polite"
       >
         <template #extra>
-          <a-button @click="router.push('/login')">返回登录</a-button>
+          <router-link to="/login" custom v-slot="{ navigate, href }">
+            <a-button :href="href" @click="navigate">返回登录</a-button>
+          </router-link>
         </template>
       </a-result>
 
-      <a-result v-else status="info" title="验证中" sub-title="请稍候" />
+      <a-result v-else status="info" title="验证中" sub-title="请稍候" aria-live="polite" />
     </a-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute } from "vue-router";
 import { useAppStore } from "../store/appStore";
 
-const router = useRouter();
 const route = useRoute();
 const { verifyEmail } = useAppStore();
 
@@ -89,6 +94,7 @@ onMounted(async () => {
   font-size: 24px;
   font-weight: bold;
   margin-bottom: 8px;
+  text-wrap: balance;
 }
 .text-secondary {
   color: var(--color-text-secondary);

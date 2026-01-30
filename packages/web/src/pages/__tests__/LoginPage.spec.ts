@@ -13,6 +13,15 @@ import { ref } from "vue";
 
 const user = ref(null);
 
+const RouterLinkStub = {
+  props: ["to", "custom"],
+  template: "<a><slot :navigate=\"navigate\" :href=\"href\"></slot></a>",
+  setup() {
+    const navigate = () => {};
+    return { navigate, href: "#" };
+  }
+};
+
 vi.mock("../../store/appStore", () => ({
   useAppStore: () => ({
     user: user,
@@ -53,6 +62,7 @@ describe("LoginPage", () => {
             "a-result": true,
             "UserOutlined": true,
             "LockOutlined": true,
+            "router-link": RouterLinkStub,
         }
       },
     });
@@ -73,6 +83,7 @@ describe("LoginPage", () => {
             "a-button": true,
             "UserOutlined": true,
             "LockOutlined": true,
+            "router-link": RouterLinkStub,
         }
       },
     });

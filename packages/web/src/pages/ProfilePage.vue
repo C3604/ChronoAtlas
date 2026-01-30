@@ -1,7 +1,7 @@
 ﻿<template>
   <div class="page-container">
-    <a-row :gutter="24" justify="center">
-      <a-col :xs="24" :sm="24" :md="20" :lg="16">
+    <a-row :gutter="24">
+      <a-col :xs="24" :sm="24" :md="24" :lg="24">
         <a-card :bordered="false" title="个人信息">
           <template #extra>
             <span class="text-secondary">邮箱与角色由系统管理</span>
@@ -9,7 +9,9 @@
 
           <div v-if="!user" class="text-center py-8">
             <a-empty description="请先登录">
-              <a-button type="primary" @click="router.push('/login')">去登录</a-button>
+              <router-link to="/login" custom v-slot="{ navigate, href }">
+                <a-button type="primary" :href="href" @click="navigate">去登录</a-button>
+              </router-link>
             </a-empty>
           </div>
 
@@ -29,9 +31,9 @@
 
             <a-divider>更新显示名</a-divider>
 
-            <a-form layout="vertical" :model="profileForm" @finish="handleSaveProfile">
+            <a-form layout="vertical" :model="profileForm" @finish="handleSaveProfile" autocomplete="on">
               <a-form-item name="displayName" label="显示名" required>
-                <a-input v-model:value="profileForm.displayName" />
+                <a-input v-model:value="profileForm.displayName" name="displayName" autocomplete="name" />
               </a-form-item>
               <div class="form-actions">
                 <a-button type="primary" html-type="submit" :loading="savingProfile">保存修改</a-button>
@@ -40,12 +42,20 @@
 
             <a-divider>修改密码</a-divider>
 
-            <a-form layout="vertical" :model="passwordForm" @finish="handleChangePassword">
+            <a-form layout="vertical" :model="passwordForm" @finish="handleChangePassword" autocomplete="on">
               <a-form-item name="currentPassword" label="当前密码" required>
-                <a-input-password v-model:value="passwordForm.currentPassword" />
+                <a-input-password
+                  v-model:value="passwordForm.currentPassword"
+                  name="currentPassword"
+                  autocomplete="current-password"
+                />
               </a-form-item>
               <a-form-item name="newPassword" label="新密码" required>
-                <a-input-password v-model:value="passwordForm.newPassword" />
+                <a-input-password
+                  v-model:value="passwordForm.newPassword"
+                  name="newPassword"
+                  autocomplete="new-password"
+                />
               </a-form-item>
               <div class="form-actions">
                 <a-button type="primary" html-type="submit" :loading="savingPassword">更新密码</a-button>
@@ -60,11 +70,9 @@
 
 <script setup lang="ts">
 import { reactive, ref, watch } from "vue";
-import { useRouter } from "vue-router";
 import { useAppStore } from "../store/appStore";
 import { message } from "ant-design-vue";
 
-const router = useRouter();
 const { user, updateProfile, changePassword, formatRole } = useAppStore();
 
 const savingProfile = ref(false);
@@ -133,7 +141,8 @@ const handleChangePassword = async () => {
 
 <style scoped>
 .page-container {
-  padding: 24px;
+  width: 100%;
+  padding: 24px clamp(16px, 3vw, 40px);
 }
 .text-secondary {
   color: var(--color-text-secondary);

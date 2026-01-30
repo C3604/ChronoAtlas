@@ -1,12 +1,13 @@
 ﻿<template>
   <a-config-provider :theme="themeConfig">
     <a-layout class="app-layout">
+      <a class="skip-link" href="#main-content">跳到主要内容</a>
       <a-layout-header class="header">
         <div class="header-content">
-          <div class="brand" @click="router.push('/')">
+          <router-link class="brand" to="/">
             <div class="brand-title text-gradient-fern">ChronoAtlas</div>
             <div class="brand-sub">时序史鉴</div>
-          </div>
+          </router-link>
 
           <!-- Desktop Navigation -->
           <div class="desktop-nav">
@@ -20,7 +21,13 @@
             />
             
             <!-- Theme Toggle -->
-            <a-button type="text" @click="toggleTheme" class="theme-btn">
+            <a-button
+              type="text"
+              @click="toggleTheme"
+              class="theme-btn"
+              aria-label="切换主题"
+              title="切换主题"
+            >
               <template #icon>
                 <bulb-filled v-if="isDark" />
                 <bulb-outlined v-else />
@@ -40,11 +47,19 @@
                         <a-tag color="success">{{ formatRole(user.roles) }}</a-tag>
                       </a-menu-item>
                       <a-menu-divider />
-                      <a-menu-item key="content" @click="handleUserMenuClick('/content')">
-                        <ReadOutlined /> 内容编辑
+                      <a-menu-item key="content">
+                        <router-link to="/content" custom v-slot="{ navigate, href }">
+                          <a :href="href" @click="navigate">
+                            <ReadOutlined /> 内容编辑
+                          </a>
+                        </router-link>
                       </a-menu-item>
-                      <a-menu-item key="profile" @click="handleUserMenuClick('/profile')">
-                        <UserOutlined /> 我的信息
+                      <a-menu-item key="profile">
+                        <router-link to="/profile" custom v-slot="{ navigate, href }">
+                          <a :href="href" @click="navigate">
+                            <UserOutlined /> 我的信息
+                          </a>
+                        </router-link>
                       </a-menu-item>
                       <a-menu-divider />
                       <a-menu-item key="logout" @click="handleLogout">
@@ -55,22 +70,35 @@
                 </a-dropdown>
               </template>
               <template v-else>
-                <a-button type="primary" ghost @click="router.push('/login')">
-                  登录
-                </a-button>
+                <router-link to="/login" custom v-slot="{ navigate, href }">
+                  <a-button type="primary" ghost :href="href" @click="navigate">
+                    登录
+                  </a-button>
+                </router-link>
               </template>
             </div>
           </div>
 
           <!-- Mobile Navigation Trigger -->
           <div class="mobile-trigger">
-            <a-button type="text" @click="toggleTheme" class="theme-btn-mobile">
+            <a-button
+              type="text"
+              @click="toggleTheme"
+              class="theme-btn-mobile"
+              aria-label="切换主题"
+              title="切换主题"
+            >
               <template #icon>
                 <bulb-filled v-if="isDark" />
                 <bulb-outlined v-else />
               </template>
             </a-button>
-            <a-button type="text" @click="drawerVisible = true">
+            <a-button
+              type="text"
+              @click="drawerVisible = true"
+              aria-label="打开导航菜单"
+              title="打开导航菜单"
+            >
               <MenuOutlined />
             </a-button>
           </div>
@@ -78,11 +106,13 @@
       </a-layout-header>
 
       <a-layout-content class="content">
-        <router-view v-slot="{ Component }">
-          <transition name="fade" mode="out-in">
-            <component :is="Component" />
-          </transition>
-        </router-view>
+        <main id="main-content" class="main-content" tabindex="-1">
+          <router-view v-slot="{ Component }">
+            <transition name="fade" mode="out-in">
+              <component :is="Component" />
+            </transition>
+          </router-view>
+        </main>
       </a-layout-content>
 
       <!-- Mobile Navigation Drawer -->
@@ -105,20 +135,41 @@
               <span class="user-name">{{ user.displayName }}</span>
               <a-tag color="success">{{ formatRole(user.roles) }}</a-tag>
             </div>
-            <a-button block class="drawer-action" @click="handleUserMenuClick('/content')">
-              <ReadOutlined /> 内容编辑
-            </a-button>
-            <a-button block class="drawer-action" @click="handleUserMenuClick('/profile')">
-              <UserOutlined /> 我的信息
-            </a-button>
+            <router-link to="/content" custom v-slot="{ navigate, href }">
+              <a-button
+                block
+                class="drawer-action"
+                :href="href"
+                @click="drawerVisible = false; navigate()"
+              >
+                <ReadOutlined /> 内容编辑
+              </a-button>
+            </router-link>
+            <router-link to="/profile" custom v-slot="{ navigate, href }">
+              <a-button
+                block
+                class="drawer-action"
+                :href="href"
+                @click="drawerVisible = false; navigate()"
+              >
+                <UserOutlined /> 我的信息
+              </a-button>
+            </router-link>
             <a-button block danger @click="handleLogout">
               <LogoutOutlined /> 退出登录
             </a-button>
           </template>
           <template v-else>
-            <a-button block type="primary" @click="handleLoginClick">
-              登录
-            </a-button>
+            <router-link to="/login" custom v-slot="{ navigate, href }">
+              <a-button
+                block
+                type="primary"
+                :href="href"
+                @click="drawerVisible = false; navigate()"
+              >
+                登录
+              </a-button>
+            </router-link>
           </template>
         </div>
       </a-drawer>
@@ -203,16 +254,6 @@ const handleMenuClick = ({ key }: { key: string }) => {
   drawerVisible.value = false;
 };
 
-const handleLoginClick = () => {
-  router.push('/login');
-  drawerVisible.value = false;
-};
-
-const handleUserMenuClick = (path: string) => {
-  router.push(path);
-  drawerVisible.value = false;
-};
-
 const handleLogout = async () => {
   await logout();
   drawerVisible.value = false;
@@ -245,7 +286,7 @@ onMounted(async () => {
 }
 
 .header {
-  padding: 0 24px;
+  padding: 0 clamp(16px, 3vw, 32px);
   background: var(--color-bg-surface);
   background-image: var(--gradient-mist);
   border-bottom: 1px solid var(--color-border);
@@ -259,8 +300,7 @@ onMounted(async () => {
 }
 
 .header-content {
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
   height: 100%;
   display: flex;
   align-items: center;
@@ -272,6 +312,8 @@ onMounted(async () => {
   align-items: baseline;
   gap: 8px;
   cursor: pointer;
+  min-width: 0;
+  text-decoration: none;
 }
 
 .brand-title {
@@ -280,6 +322,7 @@ onMounted(async () => {
   background: linear-gradient(135deg, #00F260 0%, #0575E6 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  text-wrap: balance;
 }
 
 .brand-sub {
@@ -306,10 +349,18 @@ onMounted(async () => {
 }
 
 .content {
-  padding: 24px;
-  max-width: 1200px;
-  margin: 0 auto;
   width: 100%;
+  padding: 0;
+}
+
+.main-content {
+  width: 100%;
+}
+
+.brand:focus-visible {
+  outline: 2px solid var(--color-success);
+  outline-offset: 4px;
+  border-radius: 8px;
 }
 
 .drawer-footer {

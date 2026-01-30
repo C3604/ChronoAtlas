@@ -2,6 +2,7 @@
 setlocal
 chcp 65001 >nul
 
+echo [INFO] 初始化统一启动环境...
 set "ROOT=%~dp0"
 set "CONFIG_PATH=%ROOT%packages\server\data\app-config.json"
 set "SERVER_DIR=%ROOT%packages\server"
@@ -19,12 +20,12 @@ call :KillPort %FRONTEND_PORT% 前端
 rem 避免环境变量 PORT 覆盖配置文件
 set "PORT="
 
-echo [INFO] 启动后端...
+echo [INFO] 启动后端服务...
 start "" /b cmd /c "cd /d ""%SERVER_DIR%"" && npm run dev"
 call :WaitPort %BACKEND_PORT% 后端 60
 if errorlevel 1 goto :Error
 
-echo [INFO] 后端已就绪，启动前端...
+echo [INFO] 后端已就绪，启动前端应用...
 start "" /b cmd /c "cd /d ""%WEB_DIR%"" && npm run dev"
 call :WaitPort %FRONTEND_PORT% 前端 60
 if errorlevel 1 goto :Error
@@ -32,10 +33,11 @@ if errorlevel 1 goto :Error
 set "FRONTEND_URL=http://localhost:%FRONTEND_PORT%"
 if "%FRONTEND_PORT%"=="80" set "FRONTEND_URL=http://localhost"
 
-echo [INFO] 前端已就绪，打开浏览器：%FRONTEND_URL%
+echo [INFO] 前端已就绪，正在打开浏览器：%FRONTEND_URL%
 start "" "%FRONTEND_URL%"
 
-echo [INFO] 启动完成。按 Ctrl+C 结束并停止服务。
+echo [INFO] 启动完成。所有服务在后台运行。按 Ctrl+C 结束并停止服务。
+echo [INFO] 日志输出如下：
 goto :Hold
 
 :Error

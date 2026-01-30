@@ -1,5 +1,5 @@
-﻿<template>
-  <div class="page-container" style="padding: 24px">
+﻿﻿<template>
+  <div class="page-container">
     <a-typography-title :level="2">内容编辑中心</a-typography-title>
 
     <div v-if="!user">
@@ -8,6 +8,11 @@
         type="warning"
         show-icon
       />
+      <div class="login-cta">
+        <router-link to="/login" custom v-slot="{ navigate, href }">
+          <a-button type="primary" :href="href" @click="navigate">去登录</a-button>
+        </router-link>
+      </div>
     </div>
 
     <div v-else>
@@ -19,6 +24,41 @@
         closable
         style="margin-bottom: 24px"
       />
+      <a-alert
+        v-if="opNotice"
+        :type="opNotice.type"
+        :message="opNotice.message"
+        :description="opNotice.description"
+        show-icon
+        closable
+        class="op-notice"
+        @close="clearOpNotice"
+      />
+
+      <!-- Quick Navigation -->
+      <a-card class="quick-nav-card" :bordered="false" size="small" v-if="user">
+        <div class="quick-nav-container">
+           <div class="quick-nav-label"><rocket-outlined /> 快捷导航</div>
+           <div class="quick-nav-buttons">
+              <a-button type="dashed" class="nav-btn" @click="tab = 'events'" v-if="canWriteContent">
+                <template #icon><table-outlined /></template>
+                事件列表
+              </a-button>
+              <a-button type="dashed" class="nav-btn" @click="tab = 'events'; refreshApprovals()" v-if="canApproveContent">
+                <template #icon><audit-outlined /></template>
+                审批管理
+              </a-button>
+              <a-button type="dashed" class="nav-btn" @click="tab = 'taxonomy'" v-if="canManageContent">
+                <template #icon><tags-outlined /></template>
+                标签管理
+              </a-button>
+              <a-button type="dashed" class="nav-btn" @click="tab = 'import'" v-if="canManageContent">
+                <template #icon><import-outlined /></template>
+                数据导入
+              </a-button>
+           </div>
+        </div>
+      </a-card>
 
       <a-tabs v-model:activeKey="tab">
         <!-- Events Tab -->
@@ -159,7 +199,14 @@
             <a-col :span="24">
               <a-card title="标签管理" :bordered="false">
                 <a-input-group compact style="margin-bottom: 16px; display: flex;">
-                  <a-input v-model:value="tagForm.name" placeholder="新标签名称" style="flex: 1" @pressEnter="createTagItem" />
+                  <a-input
+                    v-model:value="tagForm.name"
+                    name="tagName"
+                    placeholder="新标签名称…"
+                    autocomplete="off"
+                    style="flex: 1"
+                    @pressEnter="createTagItem"
+                  />
                   <a-button type="primary" @click="createTagItem">新增</a-button>
                 </a-input-group>
 
@@ -205,7 +252,7 @@
             </a-col>
             <a-col :span="12">
               <a-card title="导入事件" :bordered="false">
-                <a-form layout="vertical">
+                <a-form layout="vertical" autocomplete="off">
                   <a-form-item label="导入模式">
                     <a-select v-model:value="importMode">
                       <a-select-option value="merge">merge（合并）</a-select-option>
@@ -295,15 +342,34 @@
           </div>
           <div v-else>
             <a-card title="新增账号" size="small" style="margin-bottom: 24px">
-               <a-form layout="inline" :model="userForm" @finish="handleCreateUser">
+               <a-form layout="inline" :model="userForm" @finish="handleCreateUser" autocomplete="off">
                   <a-form-item name="displayName">
-                    <a-input v-model:value="userForm.displayName" placeholder="显示名" />
+                    <a-input
+                      v-model:value="userForm.displayName"
+                      name="userDisplayName"
+                      placeholder="显示名…"
+                      autocomplete="name"
+                    />
                   </a-form-item>
                   <a-form-item name="email">
-                    <a-input v-model:value="userForm.email" placeholder="邮箱" />
+                    <a-input
+                      v-model:value="userForm.email"
+                      name="userEmail"
+                      placeholder="邮箱…"
+                      type="email"
+                      inputmode="email"
+                      autocomplete="email"
+                      autocapitalize="none"
+                      spellcheck="false"
+                    />
                   </a-form-item>
                   <a-form-item name="password">
-                    <a-input-password v-model:value="userForm.password" placeholder="密码" />
+                    <a-input-password
+                      v-model:value="userForm.password"
+                      name="userPassword"
+                      placeholder="密码…"
+                      autocomplete="new-password"
+                    />
                   </a-form-item>
                   <a-form-item name="role">
                     <a-select v-model:value="userForm.role" style="width: 120px">
@@ -375,7 +441,7 @@
                 show-icon
                 style="margin-bottom: 16px"
               />
-              <a-form layout="vertical">
+              <a-form layout="vertical" autocomplete="off">
                 <a-form-item label="启用邮件发送">
                   <a-switch v-model:checked="smtpForm.enabled" />
                 </a-form-item>
@@ -383,7 +449,9 @@
                   <a-input
                     v-model:value="smtpForm.host"
                     :disabled="!smtpForm.enabled"
-                    placeholder="例如 smtp.example.com"
+                    name="smtpHost"
+                    placeholder="例如 smtp.example.com…"
+                    autocomplete="off"
                   />
                 </a-form-item>
                 <a-form-item label="端口" required>
@@ -392,6 +460,8 @@
                     :disabled="!smtpForm.enabled"
                     :min="1"
                     :max="65535"
+                    name="smtpPort"
+                    inputmode="numeric"
                     style="width: 100%"
                   />
                 </a-form-item>
@@ -399,20 +469,33 @@
                   <a-switch v-model:checked="smtpForm.secure" :disabled="!smtpForm.enabled" />
                 </a-form-item>
                 <a-form-item label="账号">
-                  <a-input v-model:value="smtpForm.username" :disabled="!smtpForm.enabled" />
+                  <a-input
+                    v-model:value="smtpForm.username"
+                    name="smtpUsername"
+                    :disabled="!smtpForm.enabled"
+                    autocomplete="off"
+                  />
                 </a-form-item>
                 <a-form-item label="密码">
                   <a-input-password
                     v-model:value="smtpForm.password"
                     :disabled="!smtpForm.enabled"
-                    placeholder="留空表示不修改"
+                    name="smtpPassword"
+                    placeholder="留空表示不修改…"
+                    autocomplete="new-password"
                   />
                 </a-form-item>
                 <a-form-item label="发件人地址">
                   <a-input
                     v-model:value="smtpForm.fromAddress"
                     :disabled="!smtpForm.enabled"
-                    placeholder="例如 no-reply@example.com"
+                    name="smtpFromAddress"
+                    placeholder="例如 no-reply@example.com…"
+                    type="email"
+                    inputmode="email"
+                    autocomplete="email"
+                    autocapitalize="none"
+                    spellcheck="false"
                   />
                 </a-form-item>
               </a-form>
@@ -443,16 +526,27 @@
       @ok="submitEvent"
       :confirmLoading="loading"
     >
-      <a-form layout="vertical">
+      <a-form layout="vertical" autocomplete="off">
         <a-row :gutter="16">
           <a-col :span="24">
              <a-form-item label="标题" required>
-               <a-input v-model:value="eventForm.title" placeholder="事件标题" />
+               <a-input
+                 v-model:value="eventForm.title"
+                 name="eventTitle"
+                 placeholder="事件标题…"
+                 autocomplete="off"
+               />
              </a-form-item>
           </a-col>
           <a-col :span="24">
              <a-form-item label="摘要">
-               <a-textarea v-model:value="eventForm.summary" :rows="3" placeholder="简要说明" />
+               <a-textarea
+                 v-model:value="eventForm.summary"
+                 name="eventSummary"
+                 :rows="3"
+                 placeholder="简要说明…"
+                 autocomplete="off"
+               />
              </a-form-item>
           </a-col>
         </a-row>
@@ -461,33 +555,77 @@
         <a-row :gutter="16">
           <a-col :span="8">
             <a-form-item label="起始年份" required>
-              <a-input-number v-model:value="eventForm.startYear" style="width: 100%" placeholder="-221" />
+              <a-input-number
+                v-model:value="eventForm.startYear"
+                name="startYear"
+                style="width: 100%"
+                placeholder="-221…"
+                inputmode="numeric"
+              />
             </a-form-item>
           </a-col>
           <a-col :span="8">
             <a-form-item label="起始月份">
-              <a-input-number v-model:value="eventForm.startMonth" style="width: 100%" :min="1" :max="12" placeholder="1-12" />
+              <a-input-number
+                v-model:value="eventForm.startMonth"
+                name="startMonth"
+                style="width: 100%"
+                :min="1"
+                :max="12"
+                placeholder="1-12…"
+                inputmode="numeric"
+              />
             </a-form-item>
           </a-col>
           <a-col :span="8">
             <a-form-item label="起始日期">
-              <a-input-number v-model:value="eventForm.startDay" style="width: 100%" :min="1" :max="31" placeholder="1-31" />
+              <a-input-number
+                v-model:value="eventForm.startDay"
+                name="startDay"
+                style="width: 100%"
+                :min="1"
+                :max="31"
+                placeholder="1-31…"
+                inputmode="numeric"
+              />
             </a-form-item>
           </a-col>
 
           <a-col :span="8">
             <a-form-item label="结束年份">
-              <a-input-number v-model:value="eventForm.endYear" style="width: 100%" placeholder="可选" />
+              <a-input-number
+                v-model:value="eventForm.endYear"
+                name="endYear"
+                style="width: 100%"
+                placeholder="可选…"
+                inputmode="numeric"
+              />
             </a-form-item>
           </a-col>
           <a-col :span="8">
             <a-form-item label="结束月份">
-              <a-input-number v-model:value="eventForm.endMonth" style="width: 100%" :min="1" :max="12" placeholder="可选" />
+              <a-input-number
+                v-model:value="eventForm.endMonth"
+                name="endMonth"
+                style="width: 100%"
+                :min="1"
+                :max="12"
+                placeholder="可选…"
+                inputmode="numeric"
+              />
             </a-form-item>
           </a-col>
           <a-col :span="8">
             <a-form-item label="结束日期">
-              <a-input-number v-model:value="eventForm.endDay" style="width: 100%" :min="1" :max="31" placeholder="可选" />
+              <a-input-number
+                v-model:value="eventForm.endDay"
+                name="endDay"
+                style="width: 100%"
+                :min="1"
+                :max="31"
+                placeholder="可选…"
+                inputmode="numeric"
+              />
             </a-form-item>
           </a-col>
 
@@ -512,12 +650,23 @@
         <a-row :gutter="16" v-if="eventForm.isApprox">
            <a-col :span="12">
              <a-form-item label="模糊范围（年）">
-               <a-input-number v-model:value="eventForm.approxRangeYears" style="width: 100%" placeholder="例如 10" />
+               <a-input-number
+                 v-model:value="eventForm.approxRangeYears"
+                 name="approxRangeYears"
+                 style="width: 100%"
+                 placeholder="例如 10…"
+                 inputmode="numeric"
+               />
              </a-form-item>
            </a-col>
            <a-col :span="12">
              <a-form-item label="模糊说明">
-               <a-input v-model:value="eventForm.fuzzyText" placeholder="可选" />
+               <a-input
+                 v-model:value="eventForm.fuzzyText"
+                 name="fuzzyText"
+                 placeholder="可选…"
+                 autocomplete="off"
+               />
              </a-form-item>
            </a-col>
         </a-row>
@@ -529,7 +678,8 @@
               <a-select
                 v-model:value="eventForm.tagIds"
                 mode="tags"
-                placeholder="选择或输入标签"
+                name="eventTags"
+                placeholder="选择或输入标签…"
                 :options="tags.map(t => ({ value: t.id, label: t.name }))"
                 :tokenSeparators="[',', '，', ' ']"
               />
@@ -552,15 +702,28 @@
       title="编辑账号"
       @ok="handleSaveUser"
     >
-      <a-form layout="vertical">
+      <a-form layout="vertical" autocomplete="off">
         <a-form-item label="显示名" required>
-          <a-input v-model:value="userEdit.displayName" />
+          <a-input v-model:value="userEdit.displayName" name="editDisplayName" autocomplete="name" />
         </a-form-item>
         <a-form-item label="邮箱" required>
-          <a-input v-model:value="userEdit.email" />
+          <a-input
+            v-model:value="userEdit.email"
+            name="editEmail"
+            type="email"
+            inputmode="email"
+            autocomplete="email"
+            autocapitalize="none"
+            spellcheck="false"
+          />
         </a-form-item>
         <a-form-item label="新密码">
-          <a-input-password v-model:value="userEdit.password" placeholder="留空表示不修改" />
+          <a-input-password
+            v-model:value="userEdit.password"
+            name="editPassword"
+            placeholder="留空表示不修改…"
+            autocomplete="new-password"
+          />
         </a-form-item>
         <a-form-item label="角色">
            <a-select v-model:value="userEdit.role" :disabled="userEdit.role === 'SUPER_ADMIN' && !isCurrentSuper">
@@ -580,10 +743,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { useAppStore } from "../store/appStore";
 import type { EventItem, EventTime, RoleName, UserInfo } from "../store/appStore";
-import { PlusOutlined } from '@ant-design/icons-vue';
+import {
+  PlusOutlined,
+  RocketOutlined,
+  AuditOutlined,
+  TableOutlined,
+  TagsOutlined,
+  ImportOutlined
+} from '@ant-design/icons-vue';
 
 const {
   user,
@@ -641,6 +811,8 @@ const userError = ref("");
 const smtpError = ref("");
 const smtpNotice = ref("");
 const smtpSaving = ref(false);
+const opNotice = ref<{ type: "success" | "info" | "warning" | "error"; message: string; description?: string } | null>(null);
+let opNoticeTimer: number | null = null;
 
 const availableTabs = computed<TabKey[]>(() => {
   const list: TabKey[] = [];
@@ -744,6 +916,29 @@ const resolvePrimaryRole = (roles: RoleName[]) => {
 const isSuperAdmin = (item: UserInfo) => item.roles.includes("SUPER_ADMIN");
 
 const isEditing = computed(() => eventForm.id !== "");
+
+const showOpNotice = (
+  type: "success" | "info" | "warning" | "error",
+  message: string,
+  description?: string
+) => {
+  opNotice.value = { type, message, description };
+  if (opNoticeTimer) {
+    window.clearTimeout(opNoticeTimer);
+  }
+  opNoticeTimer = window.setTimeout(() => {
+    opNotice.value = null;
+    opNoticeTimer = null;
+  }, 4000);
+};
+
+const clearOpNotice = () => {
+  opNotice.value = null;
+  if (opNoticeTimer) {
+    window.clearTimeout(opNoticeTimer);
+    opNoticeTimer = null;
+  }
+};
 
 // Columns Definition
 const eventColumns = [
@@ -909,13 +1104,15 @@ const submitEvent = async () => {
     await refreshEvents();
     await loadStats();
     if (result?.pending) {
-       // Ideally show a notification, but for now just close and maybe alert
-       alert("已提交审核，等待内容管理员审批");
+      showOpNotice("info", "已提交审核", "等待内容管理员审批");
+    } else {
+      showOpNotice("success", isEditing.value ? "事件已更新" : "事件已创建");
     }
     eventModalVisible.value = false;
     resetEventForm();
   } catch (error) {
     formError.value = error instanceof Error ? error.message : "提交失败";
+    showOpNotice("error", "提交失败", formError.value);
   } finally {
     loading.value = false;
   }
@@ -947,10 +1144,13 @@ const removeEvent = async (id: string) => {
     await refreshEvents();
     await loadStats();
     if (result?.pending) {
-      alert("删除申请已提交，等待审批");
+      showOpNotice("info", "删除申请已提交", "等待内容管理员审批");
+    } else {
+      showOpNotice("success", "事件已删除");
     }
   } catch (error) {
     formError.value = error instanceof Error ? error.message : "删除失败";
+    showOpNotice("error", "删除失败", formError.value);
   } finally {
     loading.value = false;
   }
@@ -968,6 +1168,7 @@ const restoreEventVersion = async (eventId: string, versionId: string) => {
   await restoreVersion(eventId, versionId);
   await refreshEvents();
   await loadVersions(eventId);
+  showOpNotice("success", "版本已恢复");
 };
 
 const refreshEvents = async () => {
@@ -985,8 +1186,10 @@ const refreshApprovals = async () => {
   }
   try {
     await loadApprovals();
+    showOpNotice("success", "审批列表已刷新");
   } catch (error) {
     approvalError.value = error instanceof Error ? error.message : "审批列表加载失败";
+    showOpNotice("error", "审批列表加载失败", approvalError.value);
   }
 };
 
@@ -995,8 +1198,10 @@ const approve = async (id: string) => {
     await approveEventChange(id);
     await refreshEvents();
     await loadStats();
+    showOpNotice("success", "已通过审批");
   } catch (error) {
     approvalError.value = error instanceof Error ? error.message : "审批失败";
+    showOpNotice("error", "审批失败", approvalError.value);
   }
 };
 
@@ -1004,8 +1209,10 @@ const reject = async (id: string) => {
   try {
     await rejectEventChange(id);
     await refreshApprovals();
+    showOpNotice("success", "已拒绝审批");
   } catch (error) {
     approvalError.value = error instanceof Error ? error.message : "拒绝失败";
+    showOpNotice("error", "拒绝失败", approvalError.value);
   }
 };
 
@@ -1013,9 +1220,14 @@ const createTagItem = async () => {
   if (!tagForm.name.trim()) {
     return;
   }
-  await createTag({ name: tagForm.name.trim() });
-  tagForm.name = "";
-  await loadTags();
+  try {
+    await createTag({ name: tagForm.name.trim() });
+    tagForm.name = "";
+    await loadTags();
+    showOpNotice("success", "标签已新增");
+  } catch (error) {
+    showOpNotice("error", "标签新增失败", error instanceof Error ? error.message : "保存失败");
+  }
 };
 
 const startEditTag = (tag: { id: string; name: string }) => {
@@ -1027,10 +1239,15 @@ const saveTagEdit = async () => {
   if (!tagEdit.id || !tagEdit.name.trim()) {
     return;
   }
-  await updateTag(tagEdit.id, { name: tagEdit.name.trim() });
-  tagEdit.id = "";
-  tagEdit.name = "";
-  await loadTags();
+  try {
+    await updateTag(tagEdit.id, { name: tagEdit.name.trim() });
+    tagEdit.id = "";
+    tagEdit.name = "";
+    await loadTags();
+    showOpNotice("success", "标签已更新");
+  } catch (error) {
+    showOpNotice("error", "标签更新失败", error instanceof Error ? error.message : "保存失败");
+  }
 };
 
 const cancelTagEdit = () => {
@@ -1039,10 +1256,15 @@ const cancelTagEdit = () => {
 };
 
 const deleteTagItem = async (id: string) => {
-  await deleteTag(id);
-  await loadTags();
-  await loadEvents();
-  await loadStats();
+  try {
+    await deleteTag(id);
+    await loadTags();
+    await loadEvents();
+    await loadStats();
+    showOpNotice("success", "标签已删除");
+  } catch (error) {
+    showOpNotice("error", "标签删除失败", error instanceof Error ? error.message : "删除失败");
+  }
 };
 
 const handleExport = async () => {
@@ -1063,8 +1285,10 @@ const handleExport = async () => {
     link.remove();
     URL.revokeObjectURL(url);
     exportNotice.value = "已开始下载导出文件";
+    showOpNotice("success", "导出已开始");
   } catch (error) {
     exportError.value = error instanceof Error ? error.message : "导出失败";
+    showOpNotice("error", "导出失败", exportError.value);
   } finally {
     exportLoading.value = false;
   }
@@ -1085,9 +1309,10 @@ const handleImportFile = async (file: File) => {
     await importEvents(importMode.value, items);
     await refreshEvents();
     await loadStats();
-    alert("导入成功");
+    showOpNotice("success", "导入成功");
   } catch (error) {
     importError.value = error instanceof Error ? error.message : "导入失败";
+    showOpNotice("error", "导入失败", importError.value);
   } finally {
     importLoading.value = false;
   }
@@ -1137,8 +1362,10 @@ const handleCreateUser = async () => {
     });
     resetUserForm();
     await refreshUsers();
+    showOpNotice("success", "账号已创建");
   } catch (error) {
     userError.value = error instanceof Error ? error.message : "创建用户失败";
+    showOpNotice("error", "创建失败", userError.value);
   }
 };
 
@@ -1172,8 +1399,10 @@ const handleSaveUser = async () => {
     await updateUser(userEdit.id, payload);
     resetUserEdit();
     await refreshUsers();
+    showOpNotice("success", "账号已更新");
   } catch (error) {
     userError.value = error instanceof Error ? error.message : "保存用户失败";
+    showOpNotice("error", "保存失败", userError.value);
   }
 };
 
@@ -1182,8 +1411,10 @@ const disableUserItem = async (id: string) => {
   try {
     await disableUser(id);
     await refreshUsers();
+    showOpNotice("success", "账号已禁用");
   } catch (error) {
     userError.value = error instanceof Error ? error.message : "禁用用户失败";
+    showOpNotice("error", "禁用失败", userError.value);
   }
 };
 
@@ -1245,8 +1476,10 @@ const handleSaveSmtp = async () => {
     if (data?.settings) {
       applySmtpSettings();
     }
+    showOpNotice("success", "SMTP 设置已保存");
   } catch (error) {
     smtpError.value = error instanceof Error ? error.message : "保存失败";
+    showOpNotice("error", "保存失败", smtpError.value);
   } finally {
     smtpSaving.value = false;
   }
@@ -1267,6 +1500,13 @@ watch(availableTabs, () => {
 
 onMounted(async () => {
   await refreshAll();
+});
+
+onUnmounted(() => {
+  if (opNoticeTimer) {
+    window.clearTimeout(opNoticeTimer);
+    opNoticeTimer = null;
+  }
 });
 
 watch(user, async (value) => {
@@ -1296,4 +1536,54 @@ watch(tab, async (value) => {
   }
 });
 </script>
+
+<style scoped>
+.page-container {
+  width: 100%;
+  padding: 24px clamp(16px, 3vw, 40px);
+}
+
+.login-cta {
+  margin-top: 16px;
+}
+
+.op-notice {
+  margin-bottom: 16px;
+  position: sticky;
+  top: 88px;
+  z-index: 9;
+}
+
+.quick-nav-card {
+  margin-bottom: 24px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0,0,0,0.03);
+}
+
+.quick-nav-container {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.quick-nav-label {
+  font-weight: 600;
+  color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quick-nav-buttons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.nav-btn {
+  border-radius: 16px;
+  font-size: 13px;
+}
+</style>
 
